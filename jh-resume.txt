@@ -1,0 +1,71 @@
+# Jonathan Hague
+
+**CAD/CAM Programmer**
+
+## Work Experience
+
+### Automation Technician level 1
+**ATS Corporation** - Lewis Center, OH 43035
+- Used Upchain software to look up blueprint and assembly builds to print.
+- Managed cables to make the product look nice and efficient as well as running cable from actuators to wiring box.
+- Troubleshooted assembled parts to dial in specifications to print.
+- Reviewed PLC programming and took courses in this.
+
+### Digital Workplace Administrator
+**IGS Energy** – Dublin, Ohio 43016
+*May 2023 to August 2023*
+- Implemented on-boarding and off-boarding procedures, ensuring swift provisioning and de-provisioning of accounts and technology resources for corporate employees.
+- Oversaw campus-wide technology deployments within the corporate office, ensuring seamless distribution of hardware and software while upholding stringent security protocols.
+
+### Technical Support Specialist
+**Express** - Columbus, OH 43230
+*March 2023 to May 2023*
+- Delivered exceptional customer service by expertly troubleshooting various tech items across multiple storefronts.
+- Additionally, efficiently managed password resets through Active Directory while promptly coordinating on-site technical support whenever required.
+
+### CNC Operator/Programmer
+**National Sign Systems** - Hilliard, OH 43026
+*2013 to 2019, 2021 to 2022*
+- Program and execute up to 20 CNC programs per day depending on business needs.
+- Troubleshoot CNC router/profiler/laser issues across various machines.
+- Correspond via email and in person with plant managers, production engineers, supervisors, and purchasing managers to ensure production workflow runs smoothly.
+- Conceptualize new products and product enhancements as needed.
+- Manage department workflow.
+    - Prioritize and delegate daily tasks for myself and up to four people.
+    - Validate team tasks are in line with production flows both upstream and downstream.
+    - Work with Engineers to make sure R&D projects are done and drawings are correct.
+    - Suggest and implement process improvements with management.
+
+### CNC Specialist
+**Exhibitpro** – New Albany, OH 43054
+*2019 to 2020*
+- Design and execute CNC programs to produce parts in a fast-paced environment.
+    - Interpret loose specifications such as rough paper drawings or digital drawings.
+- Troubleshooting CNC router and adjacent systems like table vacuum or air compressor.
+- Work with the fabrication team to come up with creative solutions to problems in a timely manner.
+
+### Leadership experience
+**Pizza shop**
+- Oversee and set daily goals for up to 4 employees and myself.
+- On occasion discussed and de-escalated issues with upset customers.
+- Responsible for financial paperwork and a nightly cash drop-off at the company’s bank.
+
+## Education
+
+### Columbus State Community College
+**Associate in Electro-Mechanical Engineering Technology**
+*Graduated 2016*
+- Implemented Programmable Logic Controllers (PLCs) with RSLogix software.
+- Programmed and operated a FANUC robot using Karel programming language.
+- Created engineering drawings both by hand and in AutoCAD, Inventor, and SolidWorks.
+- Used Electrical theory in AC, DC, digital electronics, and data acquisition systems.
+
+### Per Scholas
+*December 2022 to March 2023*
+- CompTIA A+ Certification.
+- Google IT Support Professional Certification.
+- Graduated both Valedictorian and MVP of my cohort.
+- Replace hardware components (RAM, motherboard, PSU) and diagnosis of issues.
+- Troubleshoot network issues (IP conflicts, DHCP resolutions).
+- Scripting: command line, Powershell, Python (learning).
+- Risk mitigation: malware and virus scanning and removal.
