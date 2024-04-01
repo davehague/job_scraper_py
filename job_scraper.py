@@ -15,15 +15,18 @@ from dotenv import load_dotenv
 from requests.exceptions import HTTPError
 
 
-def get_jobs_with_backoff(job_title, max_retries=5, initial_wait=5):
-    """
-    Attempts to fetch job data with exponential backoff.
+def scrape_job_data(job_titles):
+    all_jobs = pd.DataFrame()
+    for job in job_titles:
+        job_df = get_jobs_with_backoff(job)
+        if not job_df.empty:
+            all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
-    :param job_title: The title of the job to fetch.
-    :param max_retries: Maximum number of retry attempts.
-    :param initial_wait: Initial wait time in seconds before the first retry.
-    :return: Job DataFrame or None if unsuccessful.
-    """
+    save_to_file(all_jobs, "scraped_jobs")
+    return all_jobs
+
+
+def get_jobs_with_backoff(job_title, max_retries=5, initial_wait=5):
     attempt = 0
     wait_time = initial_wait
 
@@ -58,34 +61,20 @@ def get_jobs(title):
         linkedin_fetch_description=True,
         search_term=title,
         location="Columbus, OH",
-        results_wanted=10,
+        results_wanted=20,
         hours_old=24,  # (only Linkedin/Indeed is hour specific, others round up to days old)
         country_indeed='USA'  # only needed for indeed / glassdoor
     )
-    jobs['Job Title'] = title  # Add a column to indicate the job title
+    jobs['Searched Title'] = title  # Add a column to indicate the job title
     return jobs.dropna(axis=1, how='all') if not jobs.empty else pd.DataFrame()
 
 
-def get_linkedin_jobs(title):
-    jobs = scrape_jobs(
-        site_name=["linkedin"],
-        linkedin_fetch_description=True,
-        search_term=title,
-        location="Columbus, OH",
-        results_wanted=10,
-        hours_old=24,  # (only Linkedin/Indeed is hour specific, others round up to days old)
-        country_indeed='USA'  # only needed for indeed / glassdoor
-    )
-    jobs['Job Title'] = title  # Add a column to indicate the job title
-    return jobs.dropna(axis=1, how='all') if not jobs.empty else pd.DataFrame()
+def sort_job_data(all_jobs, sort_columns, ascending_orders):
+    if all_jobs.empty:
+        print("No jobs found.")
+        return all_jobs
 
-
-def sort_jobs(df, sort_columns, ascending_orders):
-    if df.empty:
-        print("DataFrame is empty. No sorting applied.")
-        return df
-    else:
-        return df.sort_values(by=sort_columns, ascending=ascending_orders)
+    return all_jobs.sort_values(by=sort_columns, ascending=ascending_orders)
 
 
 def remove_duplicates_by_url(df, column_name='job_url'):
@@ -98,51 +87,32 @@ def remove_duplicates_by_url(df, column_name='job_url'):
 
 
 def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
-    # Fill NaN values with empty strings to ensure all data is string type
     df = df.fillna("")
-
-    # Combine the relevant columns into a single text column for comparison
     combined_text = df['title'] + " " + df['company'] + " " + df['description']
 
     # Use TF-IDF to vectorize the combined text
     vectorizer = TfidfVectorizer().fit_transform(combined_text)
-
     # Compute cosine similarity matrix
     cosine_sim = cosine_similarity(vectorizer, vectorizer)
-
     # Find indices to drop (where similarity is above the threshold, excluding self-comparison)
     to_drop = np.where(
         (cosine_sim > similarity_threshold).astype(int) &
         (np.ones_like(cosine_sim) - np.eye(len(cosine_sim), dtype=bool)).astype(int)
     )
-
     # Unique job indices to keep (inverting the logic to keep the first occurrence and remove subsequent similar ones)
     indices_to_keep = np.setdiff1d(np.arange(len(df)), np.unique(to_drop[0]))
 
-    # Return DataFrame without duplicates
     return df.iloc[indices_to_keep]
 
 
-def populate_jobs_dataframe_from_web():
-    job_list = ['CAM Engineer', 'CAM Technician', 'CNC Programmer', 'Manufacturing Engineer',
-                'Process Control Engineer']
-    all_jobs = pd.DataFrame()  # Initialize an empty DataFrame to hold all jobs
+def remove_titles_matching_stop_words(df, stop_words):
+    for stop_word in stop_words:
+        df = df[~df['title'].str.contains(stop_word, case=False)]
 
-    for job in job_list:
-        job_df = get_jobs_with_backoff(job)
-        # time.sleep(20)
-        # job_df = get_linkedin_jobs(job)
-        if not job_df.empty:
-            all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
-
-    print(f"Found {len(all_jobs)} jobs")
-    all_jobs_no_duplicates = remove_duplicates_by_url(all_jobs, 'job_url')
-    print(f"Removed duplicates by URL, now we have {len(all_jobs_no_duplicates)} jobs")
-
-    return all_jobs_no_duplicates
+    return df
 
 
-def ask_claude_about_job(question, job_description=None, include_resume=False):
+def ask_claude_about_job(question, job_description=None, resume=None):
     load_dotenv()
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
     client = anthropic.Anthropic(
@@ -150,14 +120,12 @@ def ask_claude_about_job(question, job_description=None, include_resume=False):
     )
 
     full_message = ''
-    if include_resume:
-        full_message += "Here is Jonathan's resume, below\n"
-        with open("jh-resume.txt", "r") as file:
-            resume = file.read()
-            full_message += resume + "\n\n"
+    if resume is not None:
+        full_message += "Here is the candidate's resume, below\n"
+        full_message += resume + "\n\n"
 
     if job_description:
-        full_message += "Here is some information about a job\n\n" + job_description + "\n\n"
+        full_message += "Here is some information about a job.  I'll mark the job start and end with 3 equals signs (===) \n===\n" + job_description + "\n===\n"
 
     full_message += "Now for my question: \n" + question
 
@@ -165,7 +133,7 @@ def ask_claude_about_job(question, job_description=None, include_resume=False):
     # model = "claude-3-sonnet-20240229"
     message = client.messages.create(
         model=model,
-        max_tokens=1000,
+        max_tokens=200,
         temperature=0.0,
         system="You are a helpful assistant, specializing in finding the right job for a candidate",
         messages=[
@@ -176,27 +144,31 @@ def ask_claude_about_job(question, job_description=None, include_resume=False):
     return message.content
 
 
-def add_derived_data(jobs_df):
+def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
+    if len(derived_data_questions) == 0:
+        return jobs_df
+
+    print("Generating derived data...")
+    save_to_file(jobs_df, "compiled_jobs_no_derived")  # in case deriving fails
+
+    derived_data = pd.DataFrame(index=jobs_df.index)
+
     for index, row in jobs_df.iterrows():
         # for index, row in sorted_jobs.head(5).iterrows():
         job_description = f"Title: {row['title']}\nCompany: {row['company']}\nLocation: {row['location']}\n" \
                           f"Description: {row['description']}"
         print(f"{index}: Processing: {row['title']} at {row['company']}")
 
-        questions = ("Does the job mention any of the following:  CAD programming, CAM programming, PLC control "
-                     "systems, or CNC programming?  Give a simple YES or NO answer.")
+        for column_name, question in derived_data_questions:
+            answer = ask_claude_about_job(question, job_description, resume)
+            derived_data.at[index, column_name] = answer[0].text
 
-        answers = ask_claude_about_job(questions, job_description, False)
-        # Split the text into lines and remove the first line (which is empty)
-        answer = answers[0].text
-
-        # add the above 4 to the dataframe
-        jobs_df.at[index, 'mentions_relevant_skill'] = answer
-        # time.sleep(2)
-
-    return jobs_df
+        # time.sleep(2)  # In case Anthropic is having an issue
+    jobs_df_updated = pd.concat([derived_data, jobs_df], axis=1)
+    return jobs_df_updated
 
 
+# TODO:  Only keep new jobs (keep a running tally somewhere)
 def get_new_rows(df1, df2):
     # Merge the two DataFrames, keeping all rows from both
     merged = pd.merge(df1, df2, on='job_url', how='outer', indicator=True)
@@ -210,22 +182,19 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def generate_job_data(generate_derived_data=False):
-    all_jobs = populate_jobs_dataframe_from_web()
-
-    if not all_jobs.empty:
-        print(f"Found {len(all_jobs)} jobs")
-        unsimilar = remove_duplicates_by_similarity(all_jobs, 0.9)
-        print(f"Removed duplicates, now we have {len(unsimilar)} jobs")
-
-        if generate_derived_data:
-            print("Generating derived data...")
-            save_to_file(unsimilar, "compiled_jobs_no_derived")  # in case deriving fails
-            derived_jobs = add_derived_data(unsimilar)
-            sorted_jobs = sort_jobs(derived_jobs, ['company', 'title', 'location'], [True, True, True])
-        else:
-            sorted_jobs = sort_jobs(unsimilar, ['company', 'title', 'location'], [True, True, True])
-
-        return sorted_jobs
-    else:
+def clean_and_deduplicate(all_jobs, stop_words, similarity_threshold=0.9):
+    if all_jobs.empty:
         print("No jobs found.")
+        return all_jobs
+
+    print(f"Found {len(all_jobs)} jobs")
+    deduped_by_url = remove_duplicates_by_url(all_jobs, 'job_url')
+    print(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
+
+    unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
+    print(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
+
+    stop_words_removed = remove_titles_matching_stop_words(unsimilar, stop_words)
+    print(f"Removed titles matching stop words, now we have {len(stop_words_removed)} jobs")
+
+    return stop_words_removed
