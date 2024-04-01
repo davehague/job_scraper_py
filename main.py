@@ -1,5 +1,5 @@
 from file_utils import save_to_file, populate_jobs_dataframe_from_file
-from job_scraper import generate_job_data, add_derived_data
+from job_scraper import generate_job_data, add_derived_data, remove_duplicates_by_similarity
 from query_with_llama import query_data
 
 if __name__ == '__main__':
@@ -9,7 +9,9 @@ if __name__ == '__main__':
 
     if from_file:
         sorted_jobs = populate_jobs_dataframe_from_file('compiled_jobs_2024-03-27-03m.csv')
-        todays_jobs = add_derived_data(sorted_jobs)
+        todays_jobs = remove_duplicates_by_similarity(sorted_jobs)
+
+        #todays_jobs = add_derived_data(sorted_jobs)
     else:
         todays_jobs = generate_job_data(generate_derived_data)
 

@@ -54,6 +54,26 @@ def remove_duplicates_by_url(df, column_name='job_url'):
         return df.drop_duplicates(subset=[column_name], keep='first')
 
 
+def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
+    # Combine the relevant columns into a single text column for comparison
+    combined_text = df['title'] + " " + df['company'] + " " + df['description']
+
+    # Use TF-IDF to vectorize the combined text
+    vectorizer = TfidfVectorizer().fit_transform(combined_text)
+
+    # Compute cosine similarity matrix
+    cosine_sim = cosine_similarity(vectorizer, vectorizer)
+
+    # Find indices to drop (where similarity is above the threshold, excluding self-comparison)
+    to_drop = np.where(
+        (cosine_sim > similarity_threshold) & (np.ones_like(cosine_sim) - np.eye(len(cosine_sim), dtype=bool)))
+
+    # Unique job indices to keep (inverting the logic to keep the first occurrence and remove subsequent similar ones)
+    indices_to_keep = np.setdiff1d(np.arange(len(df)), np.unique(to_drop[0]))
+
+    # Return DataFrame without duplicates
+    return df.iloc[indices_to_keep]
+
 def populate_jobs_dataframe_from_web():
     job_list = ['CAM Engineer', 'CNC Programmer', 'Manufacturing Engineer', 'Process Improvement Engineer',
                 'Automation Engineer']
@@ -67,7 +87,9 @@ def populate_jobs_dataframe_from_web():
             all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
     all_jobs_no_duplicates = remove_duplicates_by_url(all_jobs, 'job_url')
-    return all_jobs_no_duplicates
+
+    all_jobs_no_duplicates_and_similar = remove_duplicates_by_similarity(all_jobs_no_duplicates, 0.9)
+    return all_jobs_no_duplicates_and_similar
 
 
 def ask_claude_about_job(question, job_description=None, include_resume=False):
