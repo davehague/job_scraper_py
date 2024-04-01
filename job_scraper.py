@@ -1,6 +1,10 @@
 import os
 
+import numpy as np
 from jobspy import scrape_jobs
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 from file_utils import populate_jobs_dataframe_from_file, save_to_file
 from send_jobs_to_documents import write_jobs_to_downloads
 import pandas as pd
@@ -8,10 +12,49 @@ import pandas as pd
 import time
 import anthropic
 from dotenv import load_dotenv
+from requests.exceptions import HTTPError
+
+
+def get_jobs_with_backoff(job_title, max_retries=5, initial_wait=5):
+    """
+    Attempts to fetch job data with exponential backoff.
+
+    :param job_title: The title of the job to fetch.
+    :param max_retries: Maximum number of retry attempts.
+    :param initial_wait: Initial wait time in seconds before the first retry.
+    :return: Job DataFrame or None if unsuccessful.
+    """
+    attempt = 0
+    wait_time = initial_wait
+
+    while attempt < max_retries:
+        try:
+            # Assuming `get_jobs` makes a request and returns a DataFrame
+            job_df = get_jobs(job_title)
+            return job_df
+        except HTTPError as e:
+            if e.response.status_code in (429, 500):
+                print(f"Error {e.response.status_code} received, retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+                wait_time *= 2  # Exponential backoff
+                attempt += 1
+            else:
+                # For other HTTP errors, you might want to raise the error or handle differently
+                raise
+        except Exception as e:
+            # For non-HTTP errors, you may want to break or handle differently
+            print(f"An error occurred: {e}")
+            break
+
+    print("Max retries reached, moving on to the next job title.")
+    return None
+
 
 def get_jobs(title):
     jobs = scrape_jobs(
         site_name=["indeed", "zip_recruiter", "glassdoor", "linkedin"],
+        distance=20,
+        job_type="fulltime",
         linkedin_fetch_description=True,
         search_term=title,
         location="Columbus, OH",
@@ -55,6 +98,9 @@ def remove_duplicates_by_url(df, column_name='job_url'):
 
 
 def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
+    # Fill NaN values with empty strings to ensure all data is string type
+    df = df.fillna("")
+
     # Combine the relevant columns into a single text column for comparison
     combined_text = df['title'] + " " + df['company'] + " " + df['description']
 
@@ -66,7 +112,9 @@ def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
 
     # Find indices to drop (where similarity is above the threshold, excluding self-comparison)
     to_drop = np.where(
-        (cosine_sim > similarity_threshold) & (np.ones_like(cosine_sim) - np.eye(len(cosine_sim), dtype=bool)))
+        (cosine_sim > similarity_threshold).astype(int) &
+        (np.ones_like(cosine_sim) - np.eye(len(cosine_sim), dtype=bool)).astype(int)
+    )
 
     # Unique job indices to keep (inverting the logic to keep the first occurrence and remove subsequent similar ones)
     indices_to_keep = np.setdiff1d(np.arange(len(df)), np.unique(to_drop[0]))
@@ -74,22 +122,24 @@ def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
     # Return DataFrame without duplicates
     return df.iloc[indices_to_keep]
 
+
 def populate_jobs_dataframe_from_web():
-    job_list = ['CAM Engineer', 'CNC Programmer', 'Manufacturing Engineer', 'Process Improvement Engineer',
-                'Automation Engineer']
+    job_list = ['CAM Engineer', 'CAM Technician', 'CNC Programmer', 'Manufacturing Engineer',
+                'Process Control Engineer']
     all_jobs = pd.DataFrame()  # Initialize an empty DataFrame to hold all jobs
 
     for job in job_list:
-        job_df = get_jobs(job)
-        time.sleep(60)
+        job_df = get_jobs_with_backoff(job)
+        # time.sleep(20)
         # job_df = get_linkedin_jobs(job)
         if not job_df.empty:
             all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
+    print(f"Found {len(all_jobs)} jobs")
     all_jobs_no_duplicates = remove_duplicates_by_url(all_jobs, 'job_url')
+    print(f"Removed duplicates by URL, now we have {len(all_jobs_no_duplicates)} jobs")
 
-    all_jobs_no_duplicates_and_similar = remove_duplicates_by_similarity(all_jobs_no_duplicates, 0.9)
-    return all_jobs_no_duplicates_and_similar
+    return all_jobs_no_duplicates
 
 
 def ask_claude_about_job(question, job_description=None, include_resume=False):
@@ -99,7 +149,6 @@ def ask_claude_about_job(question, job_description=None, include_resume=False):
         api_key=anthropic_api_key,
     )
 
-    messages = []
     full_message = ''
     if include_resume:
         full_message += "Here is Jonathan's resume, below\n"
@@ -110,7 +159,7 @@ def ask_claude_about_job(question, job_description=None, include_resume=False):
     if job_description:
         full_message += "Here is some information about a job\n\n" + job_description + "\n\n"
 
-    full_message += "Now for my questions: \n" + question
+    full_message += "Now for my question: \n" + question
 
     model = "claude-3-haiku-20240307"
     # model = "claude-3-sonnet-20240229"
@@ -118,7 +167,7 @@ def ask_claude_about_job(question, job_description=None, include_resume=False):
         model=model,
         max_tokens=1000,
         temperature=0.0,
-        system="You are a helpful assistant, specializing in job search.  Your goal is to find the best matching job for my user",
+        system="You are a helpful assistant, specializing in finding the right job for a candidate",
         messages=[
             {"role": "user", "content": full_message}
         ]
@@ -134,32 +183,16 @@ def add_derived_data(jobs_df):
                           f"Description: {row['description']}"
         print(f"{index}: Processing: {row['title']} at {row['company']}")
 
-        questions = """1. Does the job have a requirement for a minimum number of years experience? If so, give the exact wording\n 2. Does the job require a 
-            degree, and if so, what is it?\n 3. Does the job mention CAD programming or CAM programming? Give the exact wording from the description or title. 
-            mentioned.\n 4. Is this job a good fit based on the resume and the job requirements and expectations? Give an explanation why or why not. 
-            \n\nFormat your answer in a list and do not include an introduction or conclusion."""
+        questions = ("Does the job mention any of the following:  CAD programming, CAM programming, PLC control "
+                     "systems, or CNC programming?  Give a simple YES or NO answer.")
 
-        answers = ask_claude_about_job(questions, job_description, True)
+        answers = ask_claude_about_job(questions, job_description, False)
         # Split the text into lines and remove the first line (which is empty)
-        lines = answers[0].text.split('\n')
-        lines = [line for line in lines if line.strip()]
-
-        # Assign each line to a separate variable, removing the opening numbered list
-        min_years = lines[0][3:].strip()
-        requires_degree = lines[1][3:].strip()
-        mentions_cadcam = lines[2][3:].strip()
-
-        first_line = lines[3][3:].strip()
-        remaining_lines = lines[4:]
-        is_good_fit = "\n".join([first_line] + remaining_lines).strip()
+        answer = answers[0].text
 
         # add the above 4 to the dataframe
-        jobs_df.at[index, 'min_years'] = min_years
-        jobs_df.at[index, 'requires_degree'] = requires_degree
-        jobs_df.at[index, 'mentions_cadcam'] = mentions_cadcam
-        jobs_df.at[index, 'is_good_fit'] = is_good_fit
-
-        #time.sleep(2)
+        jobs_df.at[index, 'mentions_relevant_skill'] = answer
+        # time.sleep(2)
 
     return jobs_df
 
@@ -179,14 +212,19 @@ def get_new_rows(df1, df2):
 
 def generate_job_data(generate_derived_data=False):
     all_jobs = populate_jobs_dataframe_from_web()
-    sorted_jobs = sort_jobs(all_jobs, ['company', 'title', 'location'], [True, True, True])
 
-    if not sorted_jobs.empty:
-        print(f"Found {len(sorted_jobs)} jobs")
+    if not all_jobs.empty:
+        print(f"Found {len(all_jobs)} jobs")
+        unsimilar = remove_duplicates_by_similarity(all_jobs, 0.9)
+        print(f"Removed duplicates, now we have {len(unsimilar)} jobs")
 
         if generate_derived_data:
-            save_to_file(sorted_jobs, "compiled_jobs_no_derived") # in case deriving fails
-            sorted_jobs = add_derived_data(sorted_jobs)
+            print("Generating derived data...")
+            save_to_file(unsimilar, "compiled_jobs_no_derived")  # in case deriving fails
+            derived_jobs = add_derived_data(unsimilar)
+            sorted_jobs = sort_jobs(derived_jobs, ['company', 'title', 'location'], [True, True, True])
+        else:
+            sorted_jobs = sort_jobs(unsimilar, ['company', 'title', 'location'], [True, True, True])
 
         return sorted_jobs
     else:

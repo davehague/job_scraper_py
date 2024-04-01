@@ -4,14 +4,14 @@ from query_with_llama import query_data
 
 if __name__ == '__main__':
     # Get jobs
-    from_file = True
+    from_file = False
     generate_derived_data = True
 
     if from_file:
-        sorted_jobs = populate_jobs_dataframe_from_file('compiled_jobs_2024-03-27-03m.csv')
-        todays_jobs = remove_duplicates_by_similarity(sorted_jobs)
+        sorted_jobs = populate_jobs_dataframe_from_file('compiled_jobs_2024-04-01-10-23-58.csv')
+        todays_jobs = remove_duplicates_by_similarity(sorted_jobs, 0.95)
 
-        #todays_jobs = add_derived_data(sorted_jobs)
+        # todays_jobs = add_derived_data(sorted_jobs)
     else:
         todays_jobs = generate_job_data(generate_derived_data)
 
@@ -25,4 +25,4 @@ if __name__ == '__main__':
     # write_jobs_to_downloads("todays_jobs", todays_jobs)
 
     # Query data
-    #query_data("What are the jobs in here for a CAD / CAM programmer? List the title, company, and location")
+    # query_data("What are the jobs in here for a CAD / CAM programmer? List the title, company, and location")
