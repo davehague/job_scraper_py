@@ -41,6 +41,13 @@ cd path\to\job-scraper
 pip install -r requirements.txt
 ```
 
+Create a `.env` file to store your LLM keys
+    
+```bash
+OPENAI_API_KEY=sk-your-key-here
+ANTHROPIC_API_KEY=sk-your-key-here
+```
+
 Execute the main script to start the application:
 `python main.py`
 
