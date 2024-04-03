@@ -1,14 +1,16 @@
 import csv
 
-from file_utils import populate_jobs_dataframe_from_file, get_downloads_folder
+from file_utils import read_df_from_downloads, get_downloads_folder
 import os
 import pandas as pd
+
 
 def clean_filename(filename):
     invalid_chars = '<>:"/\\|?*'
     for char in invalid_chars:
         filename = filename.replace(char, '_')
     return filename
+
 
 def write_jobs_to_downloads(folder_name, jobs_df):
     downloads_folder = get_downloads_folder()

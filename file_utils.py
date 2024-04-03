@@ -10,15 +10,14 @@ def get_downloads_folder():
     return os.path.join(home, 'Downloads')
 
 
-def populate_jobs_dataframe_from_file(filename):
-    # Read from downloads folder
+def read_df_from_downloads(filename):
     downloads_folder = get_downloads_folder()
     jobs_csv_path = os.path.join(downloads_folder, filename)
     all_jobs = pd.read_csv(jobs_csv_path)
     return all_jobs
 
 
-def save_to_file(df, filename):
+def save_df_to_downloads(df, filename):
     today = datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
     filename = f"{filename}_{today}.csv"
     downloads_folder = get_downloads_folder()

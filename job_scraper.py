@@ -1,72 +1,63 @@
 import os
-
-import numpy as np
-from jobspy import scrape_jobs
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
-from file_utils import populate_jobs_dataframe_from_file, save_to_file
-from send_jobs_to_documents import write_jobs_to_downloads
-import pandas as pd
-
 import time
-import anthropic
+from file_utils import save_df_to_downloads
 from dotenv import load_dotenv
 from requests.exceptions import HTTPError
 
+from jobspy import scrape_jobs  # python-jobspy package
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-def scrape_job_data(job_titles):
+import anthropic
+
+
+def scrape_job_data(job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
     all_jobs = pd.DataFrame()
-    for job in job_titles:
-        job_df = get_jobs_with_backoff(job)
+    for job_title in job_titles:
+        job_df = get_jobs_with_backoff(job_title, job_sites, location, distance, results_wanted, hours_old, is_remote)
         if not job_df.empty:
             all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
-    save_to_file(all_jobs, "scraped_jobs")
+    print('Job scraping completed, saving temporary file (scraped_jobs)...')
+    save_df_to_downloads(all_jobs, "scraped_jobs")
     return all_jobs
 
 
-def get_jobs_with_backoff(job_title, max_retries=5, initial_wait=5):
+def get_jobs_with_backoff(job_title, job_sites, location, distance, results_wanted, hours_old, is_remote, max_retries=5,
+                          initial_wait=5):
     attempt = 0
     wait_time = initial_wait
 
     while attempt < max_retries:
         try:
-            # Assuming `get_jobs` makes a request and returns a DataFrame
-            job_df = get_jobs(job_title)
-            return job_df
+            jobs_df = scrape_jobs(
+                site_name=job_sites,
+                location=location,
+                distance=distance,
+                is_remote=is_remote,
+                job_type="fulltime",
+                linkedin_fetch_description=True,
+                search_term=job_title,
+                results_wanted=results_wanted,
+                hours_old=hours_old,  # (only Linkedin/Indeed is hour specific, others round up to days old)
+                country_indeed='USA'  # only needed for indeed / glassdoor
+            )
+            jobs_df['Searched Title'] = job_title  # Add a column to indicate the job title
+            return jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
+
         except HTTPError as e:
-            if e.response.status_code in (429, 500):
-                print(f"Error {e.response.status_code} received, retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-                wait_time *= 2  # Exponential backoff
-                attempt += 1
-            else:
-                # For other HTTP errors, you might want to raise the error or handle differently
-                raise
+            print(f"Error {e.response.status_code} received, retrying in {wait_time} seconds...")
+            time.sleep(wait_time)
+            wait_time *= 2  # Exponential backoff
+            attempt += 1
         except Exception as e:
-            # For non-HTTP errors, you may want to break or handle differently
             print(f"An error occurred: {e}")
             break
 
     print("Max retries reached, moving on to the next job title.")
     return None
-
-
-def get_jobs(title):
-    jobs = scrape_jobs(
-        site_name=["indeed", "zip_recruiter", "glassdoor", "linkedin"],
-        distance=20,
-        job_type="fulltime",
-        linkedin_fetch_description=True,
-        search_term=title,
-        location="Columbus, OH",
-        results_wanted=20,
-        hours_old=24,  # (only Linkedin/Indeed is hour specific, others round up to days old)
-        country_indeed='USA'  # only needed for indeed / glassdoor
-    )
-    jobs['Searched Title'] = title  # Add a column to indicate the job title
-    return jobs.dropna(axis=1, how='all') if not jobs.empty else pd.DataFrame()
 
 
 def sort_job_data(all_jobs, sort_columns, ascending_orders):
@@ -149,7 +140,7 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
         return jobs_df
 
     print("Generating derived data...")
-    save_to_file(jobs_df, "compiled_jobs_no_derived")  # in case deriving fails
+    save_df_to_downloads(jobs_df, "compiled_jobs_no_derived")  # in case deriving fails
 
     derived_data = pd.DataFrame(index=jobs_df.index)
 
@@ -182,7 +173,7 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate(all_jobs, stop_words, similarity_threshold=0.9):
+def clean_and_deduplicate_jobs(all_jobs, stop_words, similarity_threshold=0.9):
     if all_jobs.empty:
         print("No jobs found.")
         return all_jobs
