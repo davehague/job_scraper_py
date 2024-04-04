@@ -1,0 +1,16 @@
+{
+  "job_titles": [
+    "Software Engineering Manager",
+    "Director of Software Engineering"
+  ],
+  "is_remote": true,
+  "location": "Cleveland, OH",
+  "distance": 20,
+  "stop_words": [],
+  "skill_words": [
+    "Agile",
+    "Software Development Lifecycle",
+    "development team"
+  ],
+  "candidate_requirements": []
+}

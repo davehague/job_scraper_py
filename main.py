@@ -4,7 +4,7 @@ import json
 
 if __name__ == '__main__':
     # Set up config
-    config_file_path = 'mock_configs/junior_dev.json'
+    config_file_path = 'mock_configs/eng_manager.json'
     with open(config_file_path) as json_file:
         config = json.load(json_file)
 
