@@ -12,7 +12,7 @@ if __name__ == '__main__':
     skill_words = config.get('skill_words') or []
 
     # Get jobs
-    from_file = True
+    from_file = False
     if from_file:
         all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-12-33-19.csv')
     else:
@@ -24,7 +24,7 @@ if __name__ == '__main__':
                                    job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],
                                    location=location,
                                    hours_old=24,
-                                   results_wanted=10,
+                                   results_wanted=20,
                                    distance=distance,
                                    is_remote=is_remote)
 
@@ -53,7 +53,7 @@ if __name__ == '__main__':
                                    ' should you output anything other than a single integer as an answer to this'
                                    ' question.')]
 
-        todays_jobs = add_derived_data(cleaned_jobs, derived_data_questions, resume=resume)
+        todays_jobs = add_derived_data(cleaned_jobs, derived_data_questions, resume=resume, llm="chatgpt")
         save_df_to_downloads(todays_jobs, "compiled_jobs_with_derived")
     else:
         todays_jobs = cleaned_jobs

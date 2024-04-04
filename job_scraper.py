@@ -11,6 +11,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 import anthropic
+from openai import OpenAI
+
+system_message = ("You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
+                  "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
 
 
 def scrape_job_data(job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
@@ -103,6 +107,40 @@ def remove_titles_matching_stop_words(df, stop_words):
     return df
 
 
+def ask_chatgpt_about_job(question, job_description, resume=None):
+    load_dotenv()
+
+    client = OpenAI(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+    )
+
+    full_message = build_context_for_llm(job_description, resume, question)
+
+    model = "gpt-3.5-turbo"
+    max_retries = 5
+    wait_time = 5
+
+    for attempt in range(max_retries):
+        try:
+            completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_message + "\nOnly return text, not markdown or HTML."},
+                    {"role": "user", "content": full_message}
+                ],
+                model=model,
+            )
+
+            return completion.choices[0].message.content
+
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            time.sleep(wait_time)
+            wait_time *= 2
+
+    print("Failed to get a response after multiple retries.")
+    return None
+
+
 def ask_claude_about_job(question, job_description=None, resume=None):
     load_dotenv()
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -120,14 +158,12 @@ def ask_claude_about_job(question, job_description=None, resume=None):
                 model=model,
                 max_tokens=500,
                 temperature=0.0,
-                system="You are a helpful assistant, highly skilled in ruthlessly distilling down information from "
-                       "job descriptions, and answering questions about job descriptions in a concise and targeted "
-                       "manner.",
+                system=system_message,
                 messages=[
                     {"role": "user", "content": full_message}
                 ]
             )
-            return message.content
+            return message.content[0].text
         except anthropic.RateLimitError:
             print(f"Rate limit exceeded, retrying in {wait_time} seconds...")
             time.sleep(wait_time)
@@ -152,7 +188,7 @@ def build_context_for_llm(job_description, resume, question):
     return full_message
 
 
-def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
+def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claude"):
     if len(derived_data_questions) == 0:
         return jobs_df
 
@@ -173,13 +209,16 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
         print(f"{index}: Processing: {row['title']} at {row['company']}")
 
         for column_name, question in derived_data_questions:
-            answer = ask_claude_about_job(question, job_description, resume)
+            if llm == "chatgpt":
+                answer = ask_chatgpt_about_job(question, job_description, resume)
+            elif llm == "claude":
+                answer = ask_claude_about_job(question, job_description, resume)
 
             if answer is None:
                 print(f"Failed to get a response from the LLM, breaking out of loop.")
                 break
 
-            derived_data.at[index, column_name] = answer[0].text
+            derived_data.at[index, column_name] = answer
 
         # time.sleep(2)  # In case Anthropic is having an issue
     jobs_df_updated = pd.concat([derived_data, jobs_df], axis=1)
