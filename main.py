@@ -19,7 +19,7 @@ if __name__ == '__main__':
         distance = config.get('distance') or 20
 
         all_jobs = scrape_job_data(job_titles,
-                                   job_sites=['zip_recruiter'],  # 'indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],
+                                   job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],
                                    location=location,
                                    hours_old=24,
                                    results_wanted=15,
