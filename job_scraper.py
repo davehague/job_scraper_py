@@ -44,7 +44,7 @@ def get_jobs_with_backoff(job_title, job_sites, location, distance, results_want
                 hours_old=hours_old,  # (only Linkedin/Indeed is hour specific, others round up to days old)
                 country_indeed='USA'  # only needed for indeed / glassdoor
             )
-            jobs_df['Searched Title'] = job_title  # Add a column to indicate the job title
+            jobs_df['searched_title'] = job_title  # Add a column to indicate the job title
             return jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
 
         except HTTPError as e:
@@ -174,13 +174,18 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate_jobs(all_jobs, stop_words, similarity_threshold=0.9):
+def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, similarity_threshold=0.9):
     if all_jobs.empty:
         print("No jobs found.")
         return all_jobs
 
-    print(f"Found {len(all_jobs)} jobs")
-    deduped_by_url = remove_duplicates_by_url(all_jobs, 'job_url')
+    all_jobs_cols_removed = remove_extraneous_columns(all_jobs)
+    print(f"Found {len(all_jobs_cols_removed)} jobs")
+
+    long_desc_jobs = all_jobs_cols_removed[all_jobs_cols_removed['description'].str.len() >= 1000]
+    print(f"Removed jobs with short descriptions, now we have {len(long_desc_jobs)} jobs")
+
+    deduped_by_url = remove_duplicates_by_url(long_desc_jobs, 'job_url')
     print(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
 
     unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
@@ -192,10 +197,9 @@ def clean_and_deduplicate_jobs(all_jobs, stop_words, similarity_threshold=0.9):
     return stop_words_removed
 
 
-columns_to_keep = ['title', 'company', 'location', 'description', 'job_url', 'Searched Title', 'hard_requirements',
-                   'mentions_skill', 'resume_match', 'min_years_exp', 'candidate_requirements']
-
-
-def remove_extraneous_columns(df, columns_to_keep):
+def remove_extraneous_columns(df):
+    columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type', 'date_posted',
+                       'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 'emails', 'description',
+                       'searched_title']
     columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
     return df.drop(columns=columns_to_drop)
