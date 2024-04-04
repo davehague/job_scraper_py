@@ -124,9 +124,10 @@ def ask_claude_about_job(question, job_description=None, resume=None):
     # model = "claude-3-sonnet-20240229"
     message = client.messages.create(
         model=model,
-        max_tokens=200,
+        max_tokens=100,
         temperature=0.0,
-        system="You are a helpful assistant, specializing in finding the right job for a candidate",
+        system="You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
+               "descriptions, and answering questions about job descriptions in a concise and targeted manner.",
         messages=[
             {"role": "user", "content": full_message}
         ]
@@ -189,3 +190,12 @@ def clean_and_deduplicate_jobs(all_jobs, stop_words, similarity_threshold=0.9):
     print(f"Removed titles matching stop words, now we have {len(stop_words_removed)} jobs")
 
     return stop_words_removed
+
+
+columns_to_keep = ['title', 'company', 'location', 'description', 'job_url', 'Searched Title', 'hard_requirements',
+                   'mentions_skill', 'resume_match', 'min_years_exp', 'candidate_requirements']
+
+
+def remove_extraneous_columns(df, columns_to_keep):
+    columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
+    return df.drop(columns=columns_to_drop)

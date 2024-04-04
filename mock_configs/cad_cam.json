@@ -1,0 +1,24 @@
+{
+  "job_titles": [
+    "CAM Engineer",
+    "CAM Technician",
+    "CNC Programmer",
+    "Manufacturing Engineer",
+    "Process Control Engineer"
+  ],
+  "is_remote": false,
+  "location": "Columbus, OH",
+  "distance": 20,
+  "stop_words": [],
+  "skill_words": [
+    "CAD programming",
+    "CAM programming",
+    "PLC control systems",
+    "CNC programming"
+  ],
+  "candidate_requirements": [
+    "401k",
+    "healthcare coverage"
+  ],
+  "resume": ""
+}

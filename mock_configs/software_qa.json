@@ -1,0 +1,35 @@
+{
+  "job_titles": [
+    "Software Quality Assurance",
+    "Software QA",
+    "Software QA Manager",
+    "Software QA Lead",
+    "Software Tester"
+  ],
+  "is_remote": true,
+  "location": "Saint Louis, MO",
+  "distance": 20,
+  "stop_words": [
+    "Pharmacy",
+    "Lab",
+    "Technician",
+    "Tech",
+    "Sales",
+    "Plant",
+    "Maintenance",
+    "Manufacturing",
+    "Food",
+    "Teacher",
+    "Scientist"
+  ],
+  "skill_words": [
+    "Test cases",
+    "quality assurance",
+    "test plans",
+    "agile",
+    "automation"
+  ],
+  "candidate_requirements": [
+    "Health insurance"
+  ]
+}
