@@ -1,10 +1,10 @@
-from file_utils import save_df_to_downloads, read_df_from_downloads
+from file_utils import save_df_to_downloads, read_df_from_downloads, save_df_to_downloads_xlsx
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data
 import json
 
 if __name__ == '__main__':
     # Set up config
-    config_file_path = 'mock_configs/patient_advocate.json'
+    config_file_path = 'mock_configs/junior_dev.json'
     with open(config_file_path) as json_file:
         config = json.load(json_file)
 
@@ -12,9 +12,9 @@ if __name__ == '__main__':
     skill_words = config.get('skill_words') or []
 
     # Get jobs
-    from_file = True
+    from_file = False
     if from_file:
-        all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-10-40-10.csv')
+        all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-12-05-50.csv')
     else:
         is_remote = config.get('is_remote') or False
         location = config.get('location') or 'Columbus, OH'
@@ -37,7 +37,9 @@ if __name__ == '__main__':
         resume = config.get('resume')
 
         derived_data_questions = [('short_summary',
-                                   'Take the title and job description and provide a short summary of the job'),
+                                   'Provide a short summary of the key job responsibilities (no more than 3 '
+                                   'sentences) and benefits (no more than 3 sentences), including'
+                                   'pay info if available (no more than 1 sentence)'),
                                   ('hard_requirements',
                                    'List the hard requirements, things the candidate "must have" from the description,'
                                    ' if any'),
@@ -50,26 +52,13 @@ if __name__ == '__main__':
                                    ' should you output anything other than a single integer as an answer to this'
                                    ' question.')]
 
-        # if candidate_requirements and len(candidate_requirements) > 0:
-        #     derived_data_questions.append(
-        #         ('candidate_requirements',
-        #          f'Does this job offer any of the following: '
-        #          f'{", ".join(candidate_requirements)}'))
-
-        # if resume:
-        #     print(f"Resume: {resume}")
-        #     derived_data_questions.append(
-        #         ('resume_match',
-        #          f'Act as the hiring manager for this job, would you consider this candidate based on this resume?'
-        #          f'{resume}'))
-
         todays_jobs = add_derived_data(cleaned_jobs, derived_data_questions, resume=None)
         save_df_to_downloads(todays_jobs, "compiled_jobs_with_derived")
     else:
         todays_jobs = cleaned_jobs
 
     sorted_jobs = sort_job_data(todays_jobs, ['job_score'], [False])
-    save_df_to_downloads(sorted_jobs, "compiled_jobs")
+    save_df_to_downloads_xlsx(sorted_jobs, "compiled_jobs")
 
     # Only keep new jobs
     # yesterdays_jobs = populate_jobs_dataframe_from_file('compiled_jobs_2024-03-27-03m.csv')
