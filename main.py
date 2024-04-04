@@ -1,10 +1,10 @@
 from file_utils import save_df_to_downloads, read_df_from_downloads, save_df_to_downloads_xlsx
-from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data
+from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 import json
 
 if __name__ == '__main__':
     # Set up config
-    config_file_path = 'mock_configs/eng_manager.json'
+    config_file_path = 'mock_configs/retail_jeweler.json'
     with open(config_file_path) as json_file:
         config = json.load(json_file)
 
@@ -14,7 +14,7 @@ if __name__ == '__main__':
     # Get jobs
     from_file = False
     if from_file:
-        all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-12-33-19.csv')
+        all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-14-31-03.csv')
     else:
         is_remote = config.get('is_remote') or False
         location = config.get('location') or 'Columbus, OH'
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         todays_jobs = cleaned_jobs
 
     sorted_jobs = sort_job_data(todays_jobs, ['job_score'], [False])
-    save_df_to_downloads_xlsx(sorted_jobs, "compiled_jobs")
+    save_df_to_downloads_xlsx(reorder_columns(sorted_jobs), "compiled_jobs")
 
     # Only keep new jobs
     # yesterdays_jobs = populate_jobs_dataframe_from_file('compiled_jobs_2024-03-27-03m.csv')

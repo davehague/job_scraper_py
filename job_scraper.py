@@ -72,6 +72,13 @@ def sort_job_data(all_jobs, sort_columns, ascending_orders):
     return all_jobs.sort_values(by=sort_columns, ascending=ascending_orders)
 
 
+def reorder_columns(df):
+    # Put title and company first, then everything else
+    columns = ['title', 'company']
+    columns.extend([col for col in df.columns if col not in columns])
+    return df[columns]
+
+
 def remove_duplicates_by_url(df, column_name='job_url'):
     if df.empty:
         print("DataFrame is empty. No duplicates to remove.")
@@ -183,7 +190,8 @@ def build_context_for_llm(job_description, resume, question):
         full_message += "Here is the candidate's resume, below\n"
         full_message += resume + "\n\n"
     if job_description:
-        full_message += "Here is some information about a job.  I'll mark the job start and end with 3 equals signs (===) \n===\n" + job_description + "\n===\n"
+        full_message += ("Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
+                         "===) \n===\n") + job_description + "\n===\n"
     full_message += "Now for my question: \n" + question
     return full_message
 
