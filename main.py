@@ -12,9 +12,9 @@ if __name__ == '__main__':
     skill_words = config.get('skill_words') or []
 
     # Get jobs
-    from_file = False
+    from_file = True
     if from_file:
-        all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-12-05-50.csv')
+        all_jobs = read_df_from_downloads('compiled_jobs_no_derived_2024-04-04-12-33-19.csv')
     else:
         is_remote = config.get('is_remote') or False
         location = config.get('location') or 'Columbus, OH'
@@ -45,14 +45,15 @@ if __name__ == '__main__':
                                    ' if any'),
                                   ('job_score',
                                    f'Given the job title and description, how would you rate this job on a '
-                                   'scale of 1-100 as a good match, given the stated job titles and skills below?'
+                                   'scale of 1-100 as a good match, given the stated job titles, skills, '
+                                   'and candidate resume (if provided)?'
                                    f' Titles: {", ".join(job_titles)}'
                                    f' Skills: {", ".join(skill_words)}'
                                    ' Be as fine-grained with your assessment as possible.  Under no circumstances'
                                    ' should you output anything other than a single integer as an answer to this'
                                    ' question.')]
 
-        todays_jobs = add_derived_data(cleaned_jobs, derived_data_questions, resume=None)
+        todays_jobs = add_derived_data(cleaned_jobs, derived_data_questions, resume=resume)
         save_df_to_downloads(todays_jobs, "compiled_jobs_with_derived")
     else:
         todays_jobs = cleaned_jobs

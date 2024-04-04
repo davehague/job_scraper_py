@@ -174,6 +174,11 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
 
         for column_name, question in derived_data_questions:
             answer = ask_claude_about_job(question, job_description, resume)
+
+            if answer is None:
+                print(f"Failed to get a response from the LLM, breaking out of loop.")
+                break
+
             derived_data.at[index, column_name] = answer[0].text
 
         # time.sleep(2)  # In case Anthropic is having an issue
