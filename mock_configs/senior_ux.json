@@ -1,0 +1,34 @@
+{
+  "job_titles": [
+    "Senior UX Designer",
+    "Senior Product Designer",
+    "UX Lead",
+    "UX/UI Designer",
+    "User Experience Designer"
+  ],
+  "is_remote": true,
+  "location": "Chapel Hill, NC",
+  "distance": 10,
+  "stop_words": [
+    "Associate",
+    "Junior",
+    "Manager",
+    "Director",
+    "Staff",
+    "Principal",
+    "Developer",
+    "Architect",
+    "Content",
+    "VP"
+  ],
+  "skill_words": [
+    "user research",
+    "usability testing",
+    "strategy",
+    "prototyping"
+  ],
+  "candidate_requirements": [
+    "401k"
+  ],
+  "candidate_min_salary": 100000
+}

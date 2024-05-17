@@ -247,7 +247,8 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, similarity_threshold=0.9):
+def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, candidate_min_salary,
+                               similarity_threshold=0.9):
     if all_jobs.empty:
         print("No jobs found.")
         return all_jobs
@@ -260,14 +261,23 @@ def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, si
 
     deduped_by_url = remove_duplicates_by_url(long_desc_jobs, 'job_url')
     print(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
+    save_df_to_downloads(deduped_by_url, "deduped_by_url")
 
     unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
     print(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
+    save_df_to_downloads(unsimilar, "unsimilar")
 
     stop_words_removed = remove_titles_matching_stop_words(unsimilar, stop_words)
     print(f"Removed titles matching stop words, now we have {len(stop_words_removed)} jobs")
+    save_df_to_downloads(stop_words_removed, "stop_words_removed")
 
-    return stop_words_removed
+    # Remove all jobs where the max_amount column is less than candidate_min_salary (leave the row if max_amount is NaN)
+    stop_words_removed['max_amount'] = pd.to_numeric(stop_words_removed['max_amount'], errors='coerce')
+    min_salary_removed = stop_words_removed[stop_words_removed['max_amount'].isnull() |
+                                            (stop_words_removed['max_amount'] >= candidate_min_salary)]
+    print(f"Removed jobs with max_amount less than candidate_min_salary, now we have {len(min_salary_removed)} jobs")
+
+    return min_salary_removed
 
 
 def remove_extraneous_columns(df):
