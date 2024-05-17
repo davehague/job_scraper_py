@@ -38,6 +38,8 @@ Create a `.env` file to store your LLM keys
 ```bash
 OPENAI_API_KEY=sk-your-key-here
 ANTHROPIC_API_KEY=sk-your-key-here
+SUPABASE_URL=https://<project_url>.supabase.co
+SUPABASE_KEY=eyJhbGci...
 ```
 
 ## Configuration

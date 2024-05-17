@@ -1,11 +1,26 @@
-def save_jobs_to_supabase(df):
-    import os
-    from pathlib import Path
-    from dotenv import load_dotenv
-    from supabase import create_client, Client
-    from supabase.lib.client_options import ClientOptions
-    import pandas as pd
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
+import pandas as pd
 
+
+def convert_to_int(value):
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return None
+
+
+def convert_to_date(value):
+    try:
+        return pd.to_datetime(value).date().isoformat()
+    except (ValueError, TypeError):
+        return None
+
+
+def save_jobs_to_supabase(df):
     # Load environment variables
     env_path = Path('.') / '.env'
     load_dotenv(dotenv_path=env_path)
@@ -28,10 +43,10 @@ def save_jobs_to_supabase(df):
             'job_site': row['site'],
             'url': row['job_url'],
             'location': None if pd.isna(row['location']) else row['location'],
-            'date_posted': row['date_posted'],
+            'date_posted': convert_to_date(row['date_posted']),
             'comp_interval': None if pd.isna(row['interval']) else row['interval'],
-            'comp_min': None if pd.isna(row['min_amount']) else int(row['min_amount']),
-            'comp_max': None if pd.isna(row['max_amount']) else int(row['max_amount']),
+            'comp_min': convert_to_int(row['min_amount']),
+            'comp_max': convert_to_int(row['max_amount']),
             'comp_currency': None if pd.isna(row['currency']) else row['currency'],
             'emails': None if pd.isna(row['emails']) else row['emails'],
             'description': row['description'],
