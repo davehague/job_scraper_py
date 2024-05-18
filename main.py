@@ -2,10 +2,34 @@ from file_utils import save_df_to_downloads, read_df_from_downloads, save_df_to_
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 import json
 
-from persistent_storage import save_jobs_to_supabase
+from persistent_storage import save_jobs_to_supabase, get_role_configs, get_roles
 
 if __name__ == '__main__':
-    # Set up config
+    roles = get_roles()
+    configs = get_role_configs()
+    role_config_dict = {}
+    for role in roles:
+        # get configs by role ID
+        role_id = role.get('id')
+        role_configs = [config for config in configs if config.get('role_id') == role_id]
+        role_config_dict[role_id] = role_configs
+
+    for role_id, role_configs in role_config_dict.items():
+        print(f"Role ID: {role_id}")
+        print(f"Role Configs: {role_configs}")
+        job_titles = [config['string_value'] for config in role_configs if config['key'] == 'job_titles']
+        skill_words = [config['string_value'] for config in role_configs if config['key'] == 'skill_words']
+        stop_words = [config['string_value'] for config in role_configs if config['key'] == 'stop_words']
+        location = [config['string_value'] for config in role_configs if config['key'] == 'location']
+        distance = [config['string_value'] for config in role_configs if config['key'] == 'distance']
+        is_remote = [config['bool_value'] for config in role_configs if config['key'] == 'is_remote']
+        candidate_min_salary = [config['int_value'] for config in role_configs if
+                                config['key'] == 'candidate_min_salary']
+        resume = [config['string_value'] for config in role_configs if config['key'] == 'resume']
+        candidate_requirements = [config['string_value'] for config in role_configs if
+                                  config['key'] == 'candidate_requirements']
+        print("done")
+
     config_file_path = 'mock_configs/senior_ux.json'
     with open(config_file_path) as json_file:
         config = json.load(json_file)

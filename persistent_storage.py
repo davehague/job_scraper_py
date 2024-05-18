@@ -20,6 +20,43 @@ def convert_to_date(value):
         return None
 
 
+def get_supabase_client():
+    # Load environment variables
+    env_path = Path('.') / '.env'
+    load_dotenv(dotenv_path=env_path)
+
+    # Get Supabase URL and key from environment variables
+    supabase_url = os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_KEY')
+
+    # Initialize Supabase client
+    opts = ClientOptions().replace(schema="jobscraper")
+    supabase: Client = create_client(supabase_url, supabase_key, options=opts)
+
+    return supabase
+
+
+def get_role_configs():
+    supabase = get_supabase_client()
+    response = supabase.table('role_configs').select('*').execute()
+
+    if response.data:
+        return response.data
+    else:
+        print(f"Error fetching role configs: {response.get('error')}")
+        return None
+
+def get_roles():
+    supabase = get_supabase_client()
+    response = supabase.table('roles').select('*').execute()
+
+    if response.data:
+        return response.data
+    else:
+        print(f"Error fetching roles: {response.get('error')}")
+        return None
+
+
 def save_jobs_to_supabase(df):
     # Load environment variables
     env_path = Path('.') / '.env'
