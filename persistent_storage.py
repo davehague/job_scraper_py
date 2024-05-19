@@ -15,6 +15,8 @@ def convert_to_int(value):
 
 def convert_to_date(value):
     try:
+        if pd.isna(value) or value in ['NaT', '']:
+            return None
         return pd.to_datetime(value).date().isoformat()
     except (ValueError, TypeError):
         return None
@@ -51,6 +53,7 @@ def save_jobs_to_supabase(df):
             'emails': None if pd.isna(row['emails']) else row['emails'],
             'description': row['description'],
             'searched_title': row['searched_title'],
+            'role_id': 4
         }
 
         print(new_job)
