@@ -17,10 +17,11 @@ system_message = ("You are a helpful assistant, highly skilled in ruthlessly dis
                   "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
 
 
-def scrape_job_data(job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
+def scrape_job_data(role_id, job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
     all_jobs = pd.DataFrame()
     for job_title in job_titles:
-        job_df = get_jobs_with_backoff(job_title, job_sites, location, distance, results_wanted, hours_old, is_remote)
+        job_df = get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, results_wanted, hours_old,
+                                       is_remote)
         if not job_df.empty:
             all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
@@ -29,7 +30,8 @@ def scrape_job_data(job_titles, job_sites, location, distance, results_wanted, h
     return all_jobs
 
 
-def get_jobs_with_backoff(job_title, job_sites, location, distance, results_wanted, hours_old, is_remote, max_retries=5,
+def get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, results_wanted, hours_old, is_remote,
+                          max_retries=5,
                           initial_wait=5):
     attempt = 0
     wait_time = initial_wait
@@ -49,6 +51,7 @@ def get_jobs_with_backoff(job_title, job_sites, location, distance, results_want
                 country_indeed='USA'  # only needed for indeed / glassdoor
             )
             jobs_df['searched_title'] = job_title  # Add a column to indicate the job title
+            jobs_df['role_id'] = role_id  # Add a column to indicate the role ID
             return jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
 
         except HTTPError as e:
@@ -272,17 +275,21 @@ def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, ca
     save_df_to_downloads(stop_words_removed, "stop_words_removed")
 
     # Remove all jobs where the max_amount column is less than candidate_min_salary (leave the row if max_amount is NaN)
-    stop_words_removed['max_amount'] = pd.to_numeric(stop_words_removed['max_amount'], errors='coerce')
-    min_salary_removed = stop_words_removed[stop_words_removed['max_amount'].isnull() |
-                                            (stop_words_removed['max_amount'] >= candidate_min_salary)]
-    print(f"Removed jobs with max_amount less than candidate_min_salary, now we have {len(min_salary_removed)} jobs")
+    if 'max_amount' in stop_words_removed.columns:
+        stop_words_removed['max_amount'] = pd.to_numeric(stop_words_removed['max_amount'], errors='coerce')
+        min_salary_removed = stop_words_removed[stop_words_removed['max_amount'].isnull() |
+                                                (stop_words_removed['max_amount'] >= candidate_min_salary)]
+        print(
+            f"Removed jobs with max_amount less than candidate_min_salary, now we have {len(min_salary_removed)} jobs")
 
-    return min_salary_removed
+        return min_salary_removed
+    else:
+        return stop_words_removed
 
 
 def remove_extraneous_columns(df):
     columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type', 'date_posted',
                        'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 'emails', 'description',
-                       'searched_title']
+                       'searched_title', 'role_id']
     columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
     return df.drop(columns=columns_to_drop)

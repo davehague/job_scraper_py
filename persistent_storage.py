@@ -48,6 +48,7 @@ def get_role_configs():
         print(f"Error fetching role configs: {response.get('error')}")
         return None
 
+
 def get_roles():
     supabase = get_supabase_client()
     response = supabase.table('roles').select('*').execute()
@@ -60,6 +61,7 @@ def get_roles():
 
 
 def save_jobs_to_supabase(df):
+    print(f"Saving {len(df)} jobs to Supabase...")
     # Load environment variables
     env_path = Path('.') / '.env'
     load_dotenv(dotenv_path=env_path)
@@ -73,24 +75,30 @@ def save_jobs_to_supabase(df):
     supabase: Client = create_client(supabase_url, supabase_key, options=opts)
 
     for index, row in df.iterrows():
+
+        url_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
+        if url_exists.data:
+            print(f"Job with URL {row['job_url']} already exists, skipping...")
+            continue
+
         new_job = {
-            'title': row['title'],
-            'company': row['company'],
-            'short_summary': row['short_summary'],
-            'hard_requirements': row['hard_requirements'],
-            'score': row['job_score'],
-            'job_site': row['site'],
-            'url': row['job_url'],
-            'location': None if pd.isna(row['location']) else row['location'],
-            'date_posted': convert_to_date(row['date_posted']),
-            'comp_interval': None if pd.isna(row['interval']) else row['interval'],
-            'comp_min': convert_to_int(row['min_amount']),
-            'comp_max': convert_to_int(row['max_amount']),
-            'comp_currency': None if pd.isna(row['currency']) else row['currency'],
-            'emails': None if pd.isna(row['emails']) else row['emails'],
-            'description': row['description'],
-            'searched_title': row['searched_title'],
-            'role_id': 4
+            'title': row.get('title'),
+            'company': row.get('company'),
+            'short_summary': row.get('short_summary'),
+            'hard_requirements': row.get('hard_requirements'),
+            'score': row.get('job_score'),
+            'job_site': row.get('site'),
+            'url': row.get('job_url'),
+            'location': None if pd.isna(row.get('location')) else row.get('location'),
+            'date_posted': convert_to_date(row.get('date_posted')),
+            'comp_interval': None if pd.isna(row.get('interval')) else row.get('interval'),
+            'comp_min': convert_to_int(row.get('min_amount')),
+            'comp_max': convert_to_int(row.get('max_amount')),
+            'comp_currency': None if pd.isna(row.get('currency')) else row.get('currency'),
+            'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
+            'description': row.get('description'),
+            'searched_title': row.get('searched_title'),
+            'role_id': row.get('role_id')
         }
 
         print(new_job)
@@ -100,7 +108,3 @@ def save_jobs_to_supabase(df):
             print(f"Inserted job: {result.data}")
         else:
             print(f"Error inserting job: {result.error}")
-
-    # data, count = supabase.table('countries')
-    #   .insert({"id": 1, "name": "Denmark"})
-    #   .execute()
