@@ -68,7 +68,7 @@ def get_recent_job_urls(role_id, days_old=5):
                 .eq('role_id', role_id)
                 .execute())
 
-    if response.data:
+    if response.data or response.data == []:
         cutoff_date = datetime.now() - timedelta(days=days_old)
         urls = []
         for item in response.data:
