@@ -22,6 +22,10 @@ def scrape_job_data(role_id, job_titles, job_sites, location, distance, results_
     for job_title in job_titles:
         job_df = get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, results_wanted, hours_old,
                                        is_remote)
+
+        if job_df is None:  # Something happened with pulling the jobs (e.g. max retries reached)
+            continue
+
         if not job_df.empty:
             all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
@@ -31,8 +35,7 @@ def scrape_job_data(role_id, job_titles, job_sites, location, distance, results_
 
 
 def get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, results_wanted, hours_old, is_remote,
-                          max_retries=5,
-                          initial_wait=5):
+                          max_retries=5, initial_wait=5):
     attempt = 0
     wait_time = initial_wait
 
@@ -54,14 +57,12 @@ def get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, res
             jobs_df['role_id'] = role_id  # Add a column to indicate the role ID
             return jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
 
-        except HTTPError as e:
-            print(f"Error {e.response.status_code} received, retrying in {wait_time} seconds...")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print(f"Retrying in {wait_time} seconds...")
             time.sleep(wait_time)
             wait_time *= 2  # Exponential backoff
             attempt += 1
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            break
 
     print("Max retries reached, moving on to the next job title.")
     return None

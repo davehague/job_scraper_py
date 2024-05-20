@@ -79,7 +79,7 @@ def get_recent_job_urls(role_id, days_old=5):
             else:
                 job_date = pd.to_datetime(date_pulled)
 
-            if job_date > cutoff_date:
+            if job_date and job_date > cutoff_date:
                 urls.append(item['url'])
 
         return urls
