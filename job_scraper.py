@@ -92,6 +92,10 @@ def remove_duplicates_by_url(df, column_name='job_url'):
 
 
 def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
+    if df.empty:
+        print("DataFrame is empty. Nothing to de-duplicate.")
+        return df
+
     df = df.fillna("")
     combined_text = df['title'] + " " + df['company'] + " " + df['description']
 
@@ -111,6 +115,10 @@ def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
 
 
 def remove_titles_matching_stop_words(df, stop_words):
+    if df.empty:
+        print("DataFrame is empty. No stop words to remove.")
+        return df
+
     for stop_word in stop_words:
         df = df[~df['title'].str.contains(stop_word, case=False)]
 
@@ -250,14 +258,19 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, candidate_min_salary,
+def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, skill_words, job_titles, candidate_min_salary,
                                similarity_threshold=0.9):
     if all_jobs.empty:
         print("No jobs found.")
         return all_jobs
+    else:
+        print(f"Cleaning {len(all_jobs)} jobs")
+
+    # remove all jobs that are already in the database (based on URL)
+    all_jobs = all_jobs[~all_jobs['job_url'].isin(recent_job_urls)]
+    print(f"Removed jobs already in the database, now we have {len(all_jobs)} jobs")
 
     all_jobs_cols_removed = remove_extraneous_columns(all_jobs)
-    print(f"Found {len(all_jobs_cols_removed)} jobs")
 
     long_desc_jobs = all_jobs_cols_removed[all_jobs_cols_removed['description'].str.len() >= 1000]
     print(f"Removed jobs with short descriptions, now we have {len(long_desc_jobs)} jobs")
@@ -276,6 +289,10 @@ def clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, ca
 
     # Remove all jobs where the max_amount column is less than candidate_min_salary (leave the row if max_amount is NaN)
     if 'max_amount' in stop_words_removed.columns:
+        if (stop_words_removed.empty) or (stop_words_removed['max_amount'].isnull().all()):
+            print("No salary information available, skipping salary check.")
+            return stop_words_removed
+
         stop_words_removed['max_amount'] = pd.to_numeric(stop_words_removed['max_amount'], errors='coerce')
         min_salary_removed = stop_words_removed[stop_words_removed['max_amount'].isnull() |
                                                 (stop_words_removed['max_amount'] >= candidate_min_salary)]

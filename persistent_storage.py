@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 import pandas as pd
+from datetime import datetime, timedelta
 
 
 def convert_to_int(value):
@@ -60,6 +61,33 @@ def get_roles():
         return None
 
 
+def get_recent_job_urls(role_id, days_old=5):
+    supabase = get_supabase_client()
+    response = (supabase.table('jobs')
+                .select('url, date_posted, date_pulled')
+                .eq('role_id', role_id)
+                .execute())
+
+    if response.data:
+        cutoff_date = datetime.now() - timedelta(days=days_old)
+        urls = []
+        for item in response.data:
+            date_posted = item.get('date_posted')
+            date_pulled = item.get('date_pulled')
+            if date_posted:
+                job_date = pd.to_datetime(date_posted)
+            else:
+                job_date = pd.to_datetime(date_pulled)
+
+            if job_date > cutoff_date:
+                urls.append(item['url'])
+
+        return urls
+    else:
+        print(f"Error fetching job URLs: {response.error}")
+        return None
+
+
 def save_jobs_to_supabase(df):
     print(f"Saving {len(df)} jobs to Supabase...")
     # Load environment variables
@@ -98,7 +126,8 @@ def save_jobs_to_supabase(df):
             'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
             'description': row.get('description'),
             'searched_title': row.get('searched_title'),
-            'role_id': row.get('role_id')
+            'role_id': row.get('role_id'),
+            'date_pulled': datetime.now().isoformat()
         }
 
         print(new_job)

@@ -3,7 +3,7 @@ from file_utils import save_df_to_downloads, read_df_from_downloads, save_df_to_
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 import json
 
-from persistent_storage import save_jobs_to_supabase, get_role_configs, get_roles
+from persistent_storage import save_jobs_to_supabase, get_role_configs, get_roles, get_recent_job_urls
 
 if __name__ == '__main__':
     roles = get_roles()
@@ -57,7 +57,10 @@ if __name__ == '__main__':
         stop_words = db_stop_words or []
         candidate_min_salary = db_candidate_min_salary[0] if (db_candidate_min_salary and
                                                               db_candidate_min_salary[0] is not None) else 0
-        cleaned_jobs = clean_and_deduplicate_jobs(all_jobs, stop_words, skill_words, job_titles, candidate_min_salary,
+
+        recent_job_urls = get_recent_job_urls(role_id)
+        cleaned_jobs = clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, skill_words, job_titles,
+                                                  candidate_min_salary,
                                                   similarity_threshold=0.9)
 
         if len(cleaned_jobs) == 0:
