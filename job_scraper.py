@@ -53,9 +53,16 @@ def get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, res
                 hours_old=hours_old,  # (only Linkedin/Indeed is hour specific, others round up to days old)
                 country_indeed='USA'  # only needed for indeed / glassdoor
             )
+
+            if jobs_df is None:
+                raise ValueError("scrape_jobs returned None dataframe")
+
             jobs_df['searched_title'] = job_title  # Add a column to indicate the job title
             jobs_df['role_id'] = role_id  # Add a column to indicate the role ID
-            return jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
+            jobs_df = jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
+            jobs_df = jobs_df.fillna("").infer_objects(copy=False)
+
+            return jobs_df
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -126,6 +133,15 @@ def remove_titles_matching_stop_words(df, stop_words):
     return df
 
 
+def remove_titles_not_matching_go_words(df, go_words):
+    def contains_go_word(title):
+        return any(word in title for word in go_words)
+
+    filtered_df = df[df['title'].apply(contains_go_word)].copy()  # Use .copy() to avoid SettingWithCopyWarning
+
+    return filtered_df
+
+
 def ask_chatgpt_about_job(question, job_description, resume=None):
     load_dotenv()
 
@@ -147,6 +163,8 @@ def ask_chatgpt_about_job(question, job_description, resume=None):
                     {"role": "user", "content": full_message}
                 ],
                 model=model,
+                temperature=0.0,
+                max_tokens=150
             )
 
             return completion.choices[0].message.content
@@ -259,7 +277,8 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, skill_words, job_titles, candidate_min_salary,
+def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words, skill_words, job_titles,
+                               candidate_min_salary,
                                similarity_threshold=0.9):
     if all_jobs.empty:
         print("No jobs found.")
@@ -288,17 +307,22 @@ def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, skill_word
     print(f"Removed titles matching stop words, now we have {len(stop_words_removed)} jobs")
     save_df_to_downloads(stop_words_removed, "stop_words_removed")
 
-    # Remove all jobs where the max_amount column is less than candidate_min_salary (leave the row if max_amount is NaN)
-    if 'max_amount' in stop_words_removed.columns:
-        if (stop_words_removed.empty) or (stop_words_removed['max_amount'].isnull().all()):
-            print("No salary information available, skipping salary check.")
-            return stop_words_removed
+    non_go_words_removed = stop_words_removed if go_words == [] else remove_titles_not_matching_go_words(
+        stop_words_removed, go_words)
+    print(f"Removed titles not matching go words, now we have {len(non_go_words_removed)} jobs")
 
-        stop_words_removed['max_amount'] = pd.to_numeric(stop_words_removed['max_amount'], errors='coerce')
-        min_salary_removed = stop_words_removed[stop_words_removed['max_amount'].isnull() |
-                                                (stop_words_removed['max_amount'] >= candidate_min_salary)]
-        print(
-            f"Removed jobs with max_amount less than candidate_min_salary, now we have {len(min_salary_removed)} jobs")
+    # Remove all jobs where the max_amount column is less than candidate_min_salary (leave the row if max_amount is NaN)
+    if 'max_amount' in non_go_words_removed.columns:
+        if (non_go_words_removed.empty) or (non_go_words_removed['max_amount'].isnull().all()):
+            print("No salary information available, skipping salary check.")
+            return non_go_words_removed
+
+        non_go_words_removed.loc[:, 'max_amount'] = pd.to_numeric(non_go_words_removed['max_amount'], errors='coerce')
+        min_salary_removed = non_go_words_removed.loc[
+            non_go_words_removed['max_amount'].isnull() |
+            (non_go_words_removed['max_amount'] >= candidate_min_salary)]
+
+        print(f"Removed jobs with max_amount less than min_salary, now we have {len(min_salary_removed)} jobs")
 
         return min_salary_removed
     else:
