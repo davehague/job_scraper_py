@@ -297,15 +297,15 @@ def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words, 
 
     deduped_by_url = remove_duplicates_by_url(long_desc_jobs, 'job_url')
     print(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
-    save_df_to_downloads(deduped_by_url, "deduped_by_url")
+    # save_df_to_downloads(deduped_by_url, "deduped_by_url")
 
     unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
     print(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
-    save_df_to_downloads(unsimilar, "unsimilar")
+    # save_df_to_downloads(unsimilar, "unsimilar")
 
     stop_words_removed = remove_titles_matching_stop_words(unsimilar, stop_words)
     print(f"Removed titles matching stop words, now we have {len(stop_words_removed)} jobs")
-    save_df_to_downloads(stop_words_removed, "stop_words_removed")
+    # save_df_to_downloads(stop_words_removed, "stop_words_removed")
 
     non_go_words_removed = stop_words_removed if go_words == [] else remove_titles_not_matching_go_words(
         stop_words_removed, go_words)

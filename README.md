@@ -51,3 +51,8 @@ testing scenarios.
 
 Code formatting:  Use Pycharm's built-in formatter to ensure consistent code style. Configure it by going
 to `File > Settings > Tools > Actions on Save` and checking `Reformat code`.
+
+## Scheduling (Windows)
+
+1. Set the environment variable `JOB_SCRAPER_PROJECT_DIR` to the downloaded location of this project.
+2. Create a new task in Task Scheduler. Set Actions -> Program/Script to the `.bat` file in the root of this project.

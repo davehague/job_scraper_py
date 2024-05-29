@@ -2,12 +2,43 @@ import os
 import time
 from file_utils import save_df_to_downloads, read_df_from_downloads, save_df_to_downloads_xlsx
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
-import json
+
+# Logging
+import logging
+from pathlib import Path
+import sys
 
 from persistent_storage import save_jobs_to_supabase, get_role_configs, get_roles, get_recent_job_urls
 from llm import query_llm
 
+SCHEDULED = True;
 if __name__ == '__main__':
+
+    if SCHEDULED:
+        downloads_path = Path(os.path.join(os.path.expanduser('~'), 'Downloads'))
+        log_file = downloads_path / 'job_scraper.log'
+        logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+
+
+        # Redirect stdout and stderr to the logging system
+        class StreamToLogger:
+            def __init__(self, logger, log_level):
+                self.logger = logger
+                self.log_level = log_level
+                self.linebuf = ''
+
+            def write(self, buf):
+                for line in buf.rstrip().splitlines():
+                    self.logger.log(self.log_level, line.rstrip())
+
+            def flush(self):
+                pass
+
+
+        # Redirect stdout and stderr
+        sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
+        sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
+
     roles = get_roles()
     configs = get_role_configs()
     role_config_dict = {}
@@ -17,7 +48,7 @@ if __name__ == '__main__':
         role_config_dict[role_id] = role_configs
 
     for role_id, role_configs in role_config_dict.items():
-        # if (role_id != 4):
+        # if (role_id != 1):
         #     continue
 
         print(f"Looking for role with ID = {role_id}")
