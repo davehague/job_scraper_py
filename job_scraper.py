@@ -17,10 +17,10 @@ system_message = ("You are a helpful assistant, highly skilled in ruthlessly dis
                   "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
 
 
-def scrape_job_data(role_id, job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
+def scrape_job_data(user_id, job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
     all_jobs = pd.DataFrame()
     for job_title in job_titles:
-        job_df = get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, results_wanted, hours_old,
+        job_df = get_jobs_with_backoff(user_id, job_title, job_sites, location, distance, results_wanted, hours_old,
                                        is_remote)
 
         if job_df is None:  # Something happened with pulling the jobs (e.g. max retries reached)
@@ -34,7 +34,7 @@ def scrape_job_data(role_id, job_titles, job_sites, location, distance, results_
     return all_jobs
 
 
-def get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, results_wanted, hours_old, is_remote,
+def get_jobs_with_backoff(user_id, job_title, job_sites, location, distance, results_wanted, hours_old, is_remote,
                           max_retries=5, initial_wait=5):
     attempt = 0
     wait_time = initial_wait
@@ -58,7 +58,7 @@ def get_jobs_with_backoff(role_id, job_title, job_sites, location, distance, res
                 raise ValueError("scrape_jobs returned None dataframe")
 
             jobs_df['searched_title'] = job_title  # Add a column to indicate the job title
-            jobs_df['role_id'] = role_id  # Add a column to indicate the role ID
+            jobs_df['user_id'] = user_id  # Add a column to indicate the ID
             jobs_df = jobs_df.dropna(axis=1, how='all') if not jobs_df.empty else pd.DataFrame()
             jobs_df = jobs_df.fillna("").infer_objects(copy=False)
 
@@ -277,7 +277,7 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words, skill_words, job_titles,
+def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words,
                                candidate_min_salary,
                                similarity_threshold=0.9):
     if all_jobs.empty:
@@ -332,6 +332,6 @@ def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words, 
 def remove_extraneous_columns(df):
     columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type', 'date_posted',
                        'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 'emails', 'description',
-                       'searched_title', 'role_id']
+                       'searched_title', 'user_id']
     columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
     return df.drop(columns=columns_to_drop)

@@ -39,20 +39,27 @@ def get_supabase_client():
     return supabase
 
 
-def get_role_configs():
+def get_user_configs(user_id):
     supabase = get_supabase_client()
-    response = supabase.table('role_configs').select('*').execute()
+    response = (supabase.table('user_configs')
+                .select('*')
+                .eq('user_id', user_id)
+                .execute())
 
     if response.data:
         return response.data
     else:
-        print(f"Error fetching role configs: {response.get('error')}")
+        print(f"Error fetching configs: {response.get('error')}")
         return None
 
 
-def get_roles():
+def get_public_users():
     supabase = get_supabase_client()
-    response = supabase.table('roles').select('*').execute()
+    # Get users where is_public is True
+    response = (supabase.table('users')
+                .select('*')
+                .eq('is_public', True)
+                .execute())
 
     if response.data:
         return response.data
@@ -61,11 +68,10 @@ def get_roles():
         return None
 
 
-def get_recent_job_urls(role_id, days_old=5):
+def get_recent_job_urls(days_old=5):
     supabase = get_supabase_client()
     response = (supabase.table('jobs')
                 .select('url, date_posted, date_pulled')
-                .eq('role_id', role_id)
                 .execute())
 
     if response.data or response.data == []:
@@ -88,7 +94,7 @@ def get_recent_job_urls(role_id, days_old=5):
         return None
 
 
-def save_jobs_to_supabase(df):
+def save_jobs_to_supabase(user_id, df):
     print(f"Saving {len(df)} jobs to Supabase...")
     # Load environment variables
     env_path = Path('.') / '.env'
@@ -114,7 +120,6 @@ def save_jobs_to_supabase(df):
             'company': row.get('company'),
             'short_summary': row.get('short_summary'),
             'hard_requirements': row.get('hard_requirements'),
-            'score': row.get('job_score'),
             'job_site': row.get('site'),
             'url': row.get('job_url'),
             'location': None if pd.isna(row.get('location')) else row.get('location'),
@@ -125,8 +130,6 @@ def save_jobs_to_supabase(df):
             'comp_currency': None if pd.isna(row.get('currency')) else row.get('currency'),
             'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
             'description': row.get('description'),
-            'searched_title': row.get('searched_title'),
-            'role_id': row.get('role_id'),
             'date_pulled': datetime.now().isoformat()
         }
 
@@ -137,3 +140,16 @@ def save_jobs_to_supabase(df):
             print(f"Inserted job: {result.data}")
         else:
             print(f"Error inserting job: {result.error}")
+
+        users_jobs_row = {
+            'user_id': user_id,
+            'job_id': result.data[0].get('id'),
+            'score': row.get('job_score'),
+            'searched_title': row.get('searched_title')
+        }
+
+        association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
+        if association_result.data:
+            print(f"Inserted user job: {association_result.data}")
+        else:
+            print(f"Error inserting user job: {association_result.error}")
