@@ -146,13 +146,14 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     return todays_jobs
 
 
-SCHEDULED = False
+SCHEDULED = True
 if __name__ == '__main__':
 
     if SCHEDULED:
         downloads_path = Path(os.path.join(os.path.expanduser('~'), 'Downloads'))
         log_file = downloads_path / 'job_scraper.log'
         logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+
 
         # Redirect stdout and stderr to the logging system
         class StreamToLogger:
