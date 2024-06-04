@@ -61,7 +61,6 @@ def get_jobs_for_user(db_user, job_titles):
     db_location = db_user.get('location')
     db_distance = db_user.get('distance')
 
-    location = db_location if db_location is not None else 'USA'
     match db_is_remote:
         case "YES":
             is_remote = True
@@ -83,11 +82,18 @@ def get_jobs_for_user(db_user, job_titles):
         user_id,
         job_titles,
         job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],
-        location=location,
+        location=db_location,
         hours_old=24,
         results_wanted=results_wanted,
         distance=distance,
         is_remote=is_remote)
+
+    # Filter out jobs where is_remote is True or is_remote is not specified
+    if db_is_remote == "ONLY":
+        scraped_data = scraped_data[scraped_data['is_remote'] != False]
+        scraped_data = scraped_data[
+            scraped_data['is_remote'] != True & scraped_data['description'].str.contains("remote", case=False,
+                                                                                         na=False)]
 
     return scraped_data
 
