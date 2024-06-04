@@ -1,5 +1,6 @@
 import os
 import time
+import re
 from file_utils import save_df_to_downloads_xlsx
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 
@@ -10,6 +11,83 @@ import sys
 
 from persistent_storage import save_jobs_to_supabase, get_user_configs, get_public_users, get_recent_job_urls
 from llm import query_llm
+
+
+def get_job_ratings(jobs_df, db_user, user_configs):
+    db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
+    db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
+    db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
+    db_resume = db_user.get('resume')
+
+    job_titles = db_job_titles or []
+    skill_words = db_skill_words or []
+    stop_words = db_stop_words or []
+
+    resume = db_resume.replace('\r', ' ').replace('\n', ' ')
+    resume = re.sub(' +', ' ', resume)
+
+    for index, row in jobs_df.iterrows():
+        job_title = row['title']
+        job_description = row['description']
+        job_description = job_description.replace('\n', ' ')
+        job_description = re.sub(' +', ' ', job_description)
+
+        full_message = f"<job_titles>{', '.join(job_titles)}</job_titles>\n" + \
+                       f"<desired_words>{', '.join(skill_words)}</desired_words>\n" + \
+                       f"<undesirable_words>{', '.join(stop_words)}</undesirable_words>\n" + \
+                       f"<resume>{resume}</resume>\n" + \
+                       f"<job_title>{job_title}</job_title>\n" + \
+                       f"<job_description>{job_description}</job_description>\n" + \
+                       """
+Given the job titles (job_titles tag), desired words (desired_words tag), undesired words 
+(undesirable_words tag), resume (resume tag), job title (job_title tag) and job description 
+(job_description tag), make the following ratings:
+
+1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
+matches their experience and the type of job they desire.
+2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
+experience level (they aren't underqualified or overqualified).
+3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+well the candidate meets the skill requirements for this job.
+4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+well the candidate meets the experience requirements for this job.
+5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
+where 1 is very little chance of this being a good match for the candidate and hiring manager, 
+and 100 being a perfect match where the candidate will have a great chance to succeed in 
+this role.
+
+For experience level, look for cues in the jobs description that list years of experience, 
+then compare that to the level of experience you believe the candidate to have (make an 
+assessment based on year in directly applicable fields).
+
+Output your answer as a bulleted list.  Do not describe your process or give an explanation
+
+Example output format (where NN is a 2 digit number):
+- Candidate desire match: NN
+- Candidate experience match: NN
+- Hiring manager skill match: NN
+- Hiring manager experience match: NN
+- Final overall match assessment: NN
+"""
+
+        print(f"{index}: Adding a rating to: {row['title']} at {row['company']}")
+        ratings = query_llm(llm="gemini",
+                            model="gemini-1.5-flash",
+                            system="You are a helpful assistant, proficient in giving ratings on how well a candidate"
+                                   " matches a job posting.  You think critically and consider not only the content of"
+                                   " the information given to you, but also the implications and intent of the"
+                                   " information.",
+                            messages=[{"role": "user", "content": full_message}])
+
+        if ratings is None:
+            print("LLM failed to generate ratings.")
+            continue
+
+        ratings = ratings.split("\n")
+        job_score = ratings[4].split(":")[1].strip()
+        jobs_df.at[index, 'job_score'] = job_score
+
+    return jobs_df
 
 
 def find_best_job_titles(db_user, user_configs):
@@ -137,22 +215,26 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
                                'Summarize the hard requirements, things the candidate "must have" from the'
                                ' description.  Start the list with the number of years experience,'
                                ' if specified.  Limit this list to 4 bullet points of no more than 1 sentence'
-                               ' each'),
-                              ('job_score',
-                               f'Given the information you have, how would you rate this job on a'
-                               ' scale of 1-100 as a good match, given the candidate resume, stated job titles,'
-                               ' and stated keywords.?'
-                               f' Desired titles: {", ".join(job_titles)}.  '
-                               f' Desired Keywords from the description: {", ".join(skill_words)}.  '
-                               ' Think through this number carefully and be as fine-grained with your'
-                               ' assessment as possible.  Under no circumstances should you output anything'
-                               ' other than a single integer as an answer to this question.')]
+                               ' each')
+                              # ,
+                              # ('job_score',
+                              #  f'Given the information you have, how would you rate this job on a'
+                              #  ' scale of 1-100 as a good match, given the candidate resume, stated job titles,'
+                              #  ' and stated keywords.?'
+                              #  f' Desired titles: {", ".join(job_titles)}.  '
+                              #  f' Desired Keywords from the description: {", ".join(skill_words)}.  '
+                              #  ' Think through this number carefully and be as fine-grained with your'
+                              #  ' assessment as possible.  Under no circumstances should you output anything'
+                              #  ' other than a single integer as an answer to this question.')
+                              ]
 
     todays_jobs = add_derived_data(jobs_df, derived_data_questions, resume=resume, llm="chatgpt")
-    return todays_jobs
+    rated_jobs = get_job_ratings(todays_jobs, db_user, user_configs)
+
+    return rated_jobs
 
 
-SCHEDULED = True
+SCHEDULED = False
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -195,7 +277,7 @@ if __name__ == '__main__':
             time.sleep(15)
             continue
 
-        jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, user_id, configs)
+        jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, llm_job_titles, configs)
         sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
 
         # Save to supabase

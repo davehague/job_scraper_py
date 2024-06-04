@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 import anthropic
 from openai import OpenAI
+import google.generativeai as gemini
 
 system_message = ("You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
                   "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
@@ -41,6 +42,11 @@ def query_llm(llm, model, system, messages=[]):
                     messages=messages
                 )
                 return message.content[0].text
+            elif llm == "gemini":
+                gemini.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+                model = gemini.GenerativeModel(model)  # 'gemini-1.5-flash'
+                response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
+                return response.text
             else:
                 return None
 
