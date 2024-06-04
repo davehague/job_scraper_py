@@ -29,9 +29,9 @@ def find_best_job_titles(db_user, user_configs):
         full_message += ("Candidate does not want jobs that have titles with these words: " +
                          ", ".join(db_stop_words) + "\n")
 
-    if db_resume and db_resume[0] is not None:
+    if db_resume is not None:
         full_message += "In the <resume> tag below is the candidate resume, give extra weight to this information."
-        full_message += "<resume>" + db_resume[0] + "</resume>\n"
+        full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
 
     titles = query_llm(llm="anthropic",
                        # llm="openai",
@@ -116,7 +116,7 @@ def clean_up_jobs(jobs_df, user_configs):
 
 def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     db_resume = db_user.get('resume')
-    resume = db_resume[0] if db_resume and db_resume[0] is not None else None
+    resume = db_resume
 
     db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
     skill_words = db_skill_words or []
@@ -140,8 +140,8 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
                                ' each'),
                               ('job_score',
                                f'Given the information you have, how would you rate this job on a'
-                               ' scale of 1-100 as a good match, given the stated job titles, stated desired'
-                               ' keywords, and candidate resume (if provided)?'
+                               ' scale of 1-100 as a good match, given the candidate resume, stated job titles,'
+                               ' and stated keywords.?'
                                f' Desired titles: {", ".join(job_titles)}.  '
                                f' Desired Keywords from the description: {", ".join(skill_words)}.  '
                                ' Think through this number carefully and be as fine-grained with your'

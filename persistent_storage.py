@@ -110,6 +110,15 @@ def save_jobs_to_supabase(user_id, df):
 
     for index, row in df.iterrows():
 
+        try:
+            job_score = int(row.get('job_score'))
+        except ValueError:
+            print("job_score cannot be converted to an integer")
+            continue
+
+        if job_score < 70:
+            continue
+
         url_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
         if url_exists.data:
             print(f"Job with URL {row['job_url']} already exists, skipping...")
@@ -140,6 +149,7 @@ def save_jobs_to_supabase(user_id, df):
             print(f"Inserted job: {result.data}")
         else:
             print(f"Error inserting job: {result.error}")
+            continue;
 
         users_jobs_row = {
             'user_id': user_id,
