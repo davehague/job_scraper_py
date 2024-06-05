@@ -14,7 +14,7 @@ system_message = ("You are a helpful assistant, highly skilled in ruthlessly dis
 
 def query_llm(llm, model, system, messages=[]):
     max_retries = 3
-    wait_time = 5
+    wait_time = 3
 
     for attempt in range(max_retries):
         try:
@@ -51,10 +51,13 @@ def query_llm(llm, model, system, messages=[]):
                 return None
 
         except Exception as e:
-            print(f"An unexpected error occurred: {e}, retrying in {wait_time} seconds...")
+            print(
+                f"An unexpected error occurred: {e}. Attempt {attempt + 1} of {max_retries}. Retrying in {wait_time} seconds...")
             time.sleep(wait_time)
-            wait_time *= 2
-            break
+            wait_time *= 2  # Exponential backoff
+            if attempt == max_retries - 1:
+                print(f"Failed after {max_retries} attempts.")
+                return None
 
     return None
 

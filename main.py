@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 import sys
 
-from persistent_storage import save_jobs_to_supabase, get_user_configs, get_public_users, get_recent_job_urls
+from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users, get_recent_job_urls
 from llm import query_llm
 
 
@@ -162,7 +162,7 @@ def get_jobs_for_user(db_user, job_titles):
         case _:
             is_remote = False
 
-    distance = db_distance[0] if db_distance and db_distance[0] is not None else 20
+    distance = db_distance if db_distance is not None else 20
     if distance < 20:
         distance = 20
 
@@ -195,8 +195,7 @@ def clean_up_jobs(jobs_df, user_configs):
 
     stop_words = db_stop_words or []
     go_words = db_go_words or []
-    candidate_min_salary = db_candidate_min_salary[0] if (db_candidate_min_salary and
-                                                          db_candidate_min_salary[0] is not None) else 0
+    candidate_min_salary = db_candidate_min_salary if db_candidate_min_salary is not None else 0
 
     recent_job_urls = get_recent_job_urls(3)
     results_df = clean_and_deduplicate_jobs(jobs_df, recent_job_urls,
@@ -246,7 +245,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     return rated_jobs
 
 
-SCHEDULED = True
+SCHEDULED = False
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -274,9 +273,13 @@ if __name__ == '__main__':
         sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
-    public_users = get_public_users()
+    public_users = get_users()
     for user in public_users:
         user_id = user.get('id')
+
+        if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
+            continue
+
         configs = get_user_configs(user_id)
 
         llm_job_titles = find_best_job_titles(user, configs)

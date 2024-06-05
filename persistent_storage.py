@@ -53,12 +53,12 @@ def get_user_configs(user_id):
         return None
 
 
-def get_public_users():
+def get_users():
     supabase = get_supabase_client()
-    # Get users where is_public is True
+    # Get users where resume is not null
     response = (supabase.table('users')
                 .select('*')
-                .eq('is_public', True)
+                .neq('resume', None)
                 .execute())
 
     if response.data:
