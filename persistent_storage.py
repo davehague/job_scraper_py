@@ -154,6 +154,10 @@ def save_jobs_to_supabase(user_id, df):
         users_jobs_row = {
             'user_id': user_id,
             'job_id': result.data[0].get('id'),
+            'desire_score': row.get('desire_score'),
+            'experience_score': row.get('experience_score'),
+            'meets_requirements_score': row.get('meets_requirements_score'),
+            'meets_experience_score': row.get('meets_experience_score'),
             'score': row.get('job_score'),
             'searched_title': row.get('searched_title')
         }

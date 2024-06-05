@@ -84,8 +84,20 @@ Example output format (where NN is a 2 digit number):
             continue
 
         ratings = ratings.split("\n")
-        job_score = ratings[4].split(":")[1].strip()
-        jobs_df.at[index, 'job_score'] = job_score
+        desire_score = ratings[0].split(":")[1].strip()
+        jobs_df.at[index, 'desire_score'] = desire_score
+
+        experience_score = ratings[1].split(":")[1].strip()
+        jobs_df.at[index, 'experience_score'] = experience_score
+
+        meets_requirements_score = ratings[2].split(":")[1].strip()
+        jobs_df.at[index, 'meets_requirements_score'] = meets_requirements_score
+
+        meets_experience_score = ratings[3].split(":")[1].strip()
+        jobs_df.at[index, 'meets_experience_score'] = meets_experience_score
+
+        overall_job_score = ratings[4].split(":")[1].strip()
+        jobs_df.at[index, 'job_score'] = overall_job_score
 
     return jobs_df
 
@@ -234,7 +246,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     return rated_jobs
 
 
-SCHEDULED = False
+SCHEDULED = True
 if __name__ == '__main__':
 
     if SCHEDULED:

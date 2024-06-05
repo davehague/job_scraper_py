@@ -10,4 +10,4 @@ JOIN
     jobscraper.jobs j ON uj.job_id = j.id
 WHERE
     (j.date_posted > CURRENT_DATE - interval '7 days' OR j.date_pulled > CURRENT_DATE - interval '7 days')
-    AND uj.score::INT > 75;
+    AND uj.score::INT > 70;
