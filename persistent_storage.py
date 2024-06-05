@@ -49,8 +49,8 @@ def get_user_configs(user_id):
     if response.data:
         return response.data
     else:
-        print(f"Error fetching configs: {response.get('error')}")
-        return None
+        print(f"Error fetching configs or configs were empty")
+        return {}
 
 
 def get_users():

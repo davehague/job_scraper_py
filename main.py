@@ -277,9 +277,6 @@ if __name__ == '__main__':
     for user in public_users:
         user_id = user.get('id')
 
-        if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
-            continue
-
         configs = get_user_configs(user_id)
 
         llm_job_titles = find_best_job_titles(user, configs)
