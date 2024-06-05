@@ -2,6 +2,10 @@ CREATE OR REPLACE VIEW jobscraper.recent_high_score_jobs AS
 SELECT
     uj.user_id,
     uj.score,
+    uj.desire_score,
+    uj.experience_score,
+    uj.meets_requirements_score,
+    uj.meets_experience_score,
     uj.interested,
     j.*
 FROM
