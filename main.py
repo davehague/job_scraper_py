@@ -11,6 +11,7 @@ import sys
 
 from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users, get_recent_job_urls
 from llm import query_llm
+from send_emails import send_email_updates
 
 
 def get_job_ratings(jobs_df, db_user, user_configs):
@@ -245,7 +246,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     return rated_jobs
 
 
-SCHEDULED = False
+SCHEDULED = True
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -277,6 +278,9 @@ if __name__ == '__main__':
     for user in public_users:
         user_id = user.get('id')
 
+        # if user_id != '6ad24019-8c95-4dda-bf6d-7f2c57ab9915':
+        #     continue
+
         configs = get_user_configs(user_id)
 
         llm_job_titles = find_best_job_titles(user, configs)
@@ -295,3 +299,5 @@ if __name__ == '__main__':
         # Save to supabase
         save_jobs_to_supabase(user_id, sorted_jobs)
         save_df_to_downloads_xlsx(reorder_columns(sorted_jobs), "compiled_jobs")
+
+    # send_email_updates()

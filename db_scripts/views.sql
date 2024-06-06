@@ -7,6 +7,7 @@ SELECT
     uj.meets_requirements_score,
     uj.meets_experience_score,
     uj.interested,
+    uj.email_sent,
     j.*
 FROM
     jobscraper.users_jobs uj
