@@ -300,4 +300,4 @@ if __name__ == '__main__':
         save_jobs_to_supabase(user_id, sorted_jobs)
         save_df_to_downloads_xlsx(reorder_columns(sorted_jobs), "compiled_jobs")
 
-    # send_email_updates()
+    send_email_updates()

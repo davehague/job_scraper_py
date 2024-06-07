@@ -64,7 +64,7 @@ def send_email(user_email, user_name, email_content):
 def update_email_sent_status(unemailed_jobs):
     supabase = get_supabase_client()
 
-    for job in unemailed_jobs.data[:1]:
+    for job in unemailed_jobs.data:
         print(f"Updating email_sent status for job: {job['id']}")
         job_id = job['id']
         supabase.table('users_jobs').update({'email_sent': True}).eq('job_id', job_id).execute()
