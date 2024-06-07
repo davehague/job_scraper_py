@@ -12,7 +12,7 @@ def send_email_updates():
         user_id = user['id']
         user_name = user['name']
         user_email = user['email']
-        unemailed_jobs = (supabase.table('recent_high_score_jobs').select('id, title, company, score')
+        unemailed_jobs = (supabase.table('recent_high_score_jobs').select('id, user_id, title, company, score')
                           .eq('user_id', user_id).eq('email_sent', False)
                           .order('score', desc=True)
                           .execute())
@@ -67,4 +67,9 @@ def update_email_sent_status(unemailed_jobs):
     for job in unemailed_jobs.data:
         print(f"Updating email_sent status for job: {job['id']}")
         job_id = job['id']
-        supabase.table('users_jobs').update({'email_sent': True}).eq('job_id', job_id).execute()
+        user_id = job['user_id']
+
+        (supabase.table('users_jobs').update({'email_sent': True})
+         .eq('user_id', user_id)
+         .eq('job_id', job_id)
+         .execute())
