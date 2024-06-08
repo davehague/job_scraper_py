@@ -17,6 +17,11 @@ def send_email_updates():
                           .order('score', desc=True)
                           .execute())
 
+        if not unemailed_jobs.data or len(unemailed_jobs.data) == 0:
+            print(f"No new jobs for {user_name}, skipping email.")
+            continue
+
+        print(f"Found {len(unemailed_jobs.data)} new jobs for {user_name}")
         email_content = (f'Hi {user_name}!  Good news, we scoured the internet and found new jobs that we think are'
                          f' good matches for you!\n\n')
         for job in unemailed_jobs.data:
@@ -33,6 +38,7 @@ def send_email_updates():
 
 
 def send_email(user_email, user_name, email_content):
+    print(f"Sending email to {user_name} at {user_email}")
     api_key = os.environ.get('MJ_APIKEY_PUBLIC')
     api_secret = os.environ.get('MJ_APIKEY_PRIVATE')
     mailjet = Client(auth=(api_key, api_secret), version='v3.1')
@@ -65,7 +71,6 @@ def update_email_sent_status(unemailed_jobs):
     supabase = get_supabase_client()
 
     for job in unemailed_jobs.data:
-        print(f"Updating email_sent status for job: {job['id']}")
         job_id = job['id']
         user_id = job['user_id']
 

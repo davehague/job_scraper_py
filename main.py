@@ -277,6 +277,7 @@ if __name__ == '__main__':
     public_users = get_users()
     for user in public_users:
         user_id = user.get('id')
+        print(f"Processing user: {user_id} ({user.get('name')})")
 
         # if user_id != '6ad24019-8c95-4dda-bf6d-7f2c57ab9915':
         #     continue
