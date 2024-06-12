@@ -55,10 +55,10 @@ def get_user_configs(user_id):
 
 def get_users():
     supabase = get_supabase_client()
-    # Get users where resume is not null
     response = (supabase.table('users')
                 .select('*')
                 .neq('resume', None)
+                .neq('resume', '')
                 .execute())
 
     if response.data:

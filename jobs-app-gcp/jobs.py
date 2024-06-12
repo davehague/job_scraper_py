@@ -39,10 +39,10 @@ def main(event, context):
 
     def get_users():
         supabase = get_supabase_client()
-        # Get users where resume is not null
         response = (supabase.table('users')
                     .select('*')
                     .neq('resume', None)
+                    .neq('resume', '')
                     .execute())
 
         if response.data:
@@ -727,6 +727,10 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
 
+        if len(user.get('resume')) < 100:
+            print("Resume is too short, skipping.")
+            continue
+
         # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
         #     continue
 
@@ -751,5 +755,6 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
     #send_email_updates()
 
 
-if __name__ == '__main__':
-    main('event', 'context')
+# For running locally
+# if __name__ == '__main__':
+#     main('event', 'context')

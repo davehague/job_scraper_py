@@ -61,14 +61,16 @@ For experience level, look for cues in the jobs description that list years of e
 then compare that to the level of experience you believe the candidate to have (make an 
 assessment based on year in directly applicable fields).
 
-Output your answer as a bulleted list.  Do not describe your process or give an explanation
+Start your answer immediately with a bulleted list and then give an explanation for why you chose those
+ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
+(where NN is a 2 digit number):
 
-Example output format (where NN is a 2 digit number):
 - Candidate desire match: NN
 - Candidate experience match: NN
 - Hiring manager skill match: NN
 - Hiring manager experience match: NN
 - Final overall match assessment: NN
+- Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
 """
 
         print(f"{index}: Adding a rating to: {row['title']} at {row['company']}")
@@ -84,9 +86,11 @@ Example output format (where NN is a 2 digit number):
             print("LLM failed to generate ratings.")
             continue
 
+        print(f"Ratings for job {index}: {ratings}")
+        guidance = ratings.split("Explanation of ratings:")[1].strip()
         ratings = ratings.split("\n")
 
-        if len(ratings) >= 5:
+        if len(ratings) >= 6:
             desire_score_split = ratings[0].split(":")
             if len(desire_score_split) == 2:
                 desire_score = desire_score_split[1].strip()
@@ -118,13 +122,21 @@ Example output format (where NN is a 2 digit number):
             overall_job_score_split = ratings[4].split(":")
             if len(overall_job_score_split) == 2:
                 overall_job_score = overall_job_score_split[1].strip()
+                print(f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
                 jobs_df.at[index, 'job_score'] = overall_job_score
             else:
                 print("Error: Unable to split overall job score.")
+
+            if len(guidance) > 0:
+                print(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
+                jobs_df.at[index, 'guidance'] = guidance
         else:
             print("Error: Ratings list does not have enough elements.")
 
-    return jobs_df
+    jobs_over_50 = jobs_df[jobs_df['job_score'].astype(float) > 50]
+
+    print('Found jobs with scores over 50: ' + str(len(jobs_over_50)))
+    return jobs_over_50
 
 
 def find_best_job_titles(db_user, user_configs):
@@ -252,22 +264,12 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
                                ' description.  Start the list with the number of years experience,'
                                ' if specified.  Limit this list to 4 bullet points of no more than 1 sentence'
                                ' each')
-                              # ,
-                              # ('job_score',
-                              #  f'Given the information you have, how would you rate this job on a'
-                              #  ' scale of 1-100 as a good match, given the candidate resume, stated job titles,'
-                              #  ' and stated keywords.?'
-                              #  f' Desired titles: {", ".join(job_titles)}.  '
-                              #  f' Desired Keywords from the description: {", ".join(skill_words)}.  '
-                              #  ' Think through this number carefully and be as fine-grained with your'
-                              #  ' assessment as possible.  Under no circumstances should you output anything'
-                              #  ' other than a single integer as an answer to this question.')
                               ]
 
-    todays_jobs = add_derived_data(jobs_df, derived_data_questions, resume=resume, llm="chatgpt")
-    rated_jobs = get_job_ratings(todays_jobs, db_user, user_configs)
+    rated_jobs = get_job_ratings(jobs_df, db_user, user_configs)
+    todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume, llm="chatgpt")
 
-    return rated_jobs
+    return todays_jobs
 
 
 SCHEDULED = False
@@ -305,6 +307,10 @@ if __name__ == '__main__':
 
         # if user_id != '6ad24019-8c95-4dda-bf6d-7f2c57ab9915':
         #     continue
+
+        if len(user.get('resume')) < 100:
+            print("Resume is too short, skipping.")
+            continue
 
         configs = get_user_configs(user_id)
 
