@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+
 from mailjet_rest import Client
 
 from persistent_storage import get_supabase_client
@@ -6,9 +8,15 @@ from persistent_storage import get_supabase_client
 
 def send_email_updates():
     supabase = get_supabase_client()
-    users = supabase.table('users').select('id, email, name').eq('send_emails', True).execute()
+    users = supabase.table('users').select('id, email, name, send_emails').neq('send_emails', 'never').execute()
+
+    current_time = datetime.now()
 
     for user in users.data:
+        send_emails = user['send_emails']
+        if current_time.hour < 17 and send_emails == 'daily':
+            continue
+
         user_id = user['id']
         user_name = user['name']
         user_email = user['email']

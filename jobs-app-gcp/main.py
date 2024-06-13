@@ -14,14 +14,27 @@ import anthropic
 from openai import OpenAI
 import google.generativeai as gemini
 
-
 from jobspy import scrape_jobs  # python-jobspy package
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-def main(event, context):
+def jobs_app_scheduled(event, context):
+    print(event)
+    print(context)
+    return "Hello world!"
+
+
+def jobs_app_function(context):
+    if context.method == 'POST' and 'X-CloudScheduler' in context.headers:
+        # This is a scheduled job execution
+        jobs_app_scheduled(context.get_json(), context.context)
+        return 'Scheduled job executed successfully', 200
+    else:
+        # This is a regular HTTP request
+        return 'Hello from a regular HTTP request!', 200
+
     def get_supabase_client():
         # Load environment variables
         env_path = Path('.') / '.env'
@@ -50,7 +63,7 @@ def main(event, context):
         else:
             print(f"Error fetching roles: {response.get('error')}")
             return None
-        
+
     def get_user_configs(user_id):
         supabase = get_supabase_client()
         response = (supabase.table('user_configs')
@@ -63,7 +76,7 @@ def main(event, context):
         else:
             print(f"Error fetching configs or configs were empty")
             return {}
-        
+
     def find_best_job_titles(db_user, user_configs):
         db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
         db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
@@ -79,24 +92,24 @@ def main(event, context):
 
         if db_stop_words and len(db_stop_words) > 0:
             full_message += ("Candidate does not want jobs that have titles with these words: " +
-                            ", ".join(db_stop_words) + "\n")
+                             ", ".join(db_stop_words) + "\n")
 
         if db_resume is not None:
             full_message += "In the <resume> tag below is the candidate resume, give extra weight to this information."
             full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
 
         titles = query_llm(llm="anthropic",
-                        # llm="openai",
-                        # "gpt-3.5-turbo",
-                        # model="gpt-4o-2024-05-13",
-                        model="claude-3-opus-20240229",
-                        system="You are an expert in searching job listings. You take all the information"
-                                " given to you and come up with a list of 4 most relevant job titles. You do not"
-                                " have to use the job titles provided by the candidate, but take them into"
-                                " consideration.  Only list the titles in a comma-separated list, "
-                                " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
-                                " A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.",
-                        messages=[{"role": "user", "content": full_message}])
+                           # llm="openai",
+                           # "gpt-3.5-turbo",
+                           # model="gpt-4o-2024-05-13",
+                           model="claude-3-opus-20240229",
+                           system="You are an expert in searching job listings. You take all the information"
+                                  " given to you and come up with a list of 4 most relevant job titles. You do not"
+                                  " have to use the job titles provided by the candidate, but take them into"
+                                  " consideration.  Only list the titles in a comma-separated list, "
+                                  " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
+                                  " A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.",
+                           messages=[{"role": "user", "content": full_message}])
 
         if titles is None:  # Fall back if LLM failed
             titles = db_job_titles or []
@@ -104,7 +117,7 @@ def main(event, context):
             titles = [title.strip() for title in titles.split(",")] if titles else []
 
         return titles
-    
+
     def query_llm(llm, model, system, messages=[]):
         max_retries = 3
         wait_time = 3
@@ -153,7 +166,7 @@ def main(event, context):
                     return None
 
         return None
-    
+
     def get_jobs_for_user(db_user, job_titles):
         print(f"Searching for job titles: {','.join(job_titles)}")
 
@@ -193,7 +206,7 @@ def main(event, context):
             scraped_data = scraped_data[scraped_data['is_remote'] != False]
             scraped_data = scraped_data[
                 scraped_data['is_remote'] != True & scraped_data['description'].str.contains("remote", case=False,
-                                                                                            na=False)]
+                                                                                             na=False)]
 
         return scraped_data
 
@@ -201,7 +214,7 @@ def main(event, context):
         all_jobs = pd.DataFrame()
         for job_title in job_titles:
             job_df = get_jobs_with_backoff(user_id, job_title, job_sites, location, distance, results_wanted, hours_old,
-                                        is_remote)
+                                           is_remote)
 
             if job_df is None:  # Something happened with pulling the jobs (e.g. max retries reached)
                 continue
@@ -210,9 +223,9 @@ def main(event, context):
                 all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
         return all_jobs
-    
+
     def get_jobs_with_backoff(user_id, job_title, job_sites, location, distance, results_wanted, hours_old, is_remote,
-                          max_retries=5, initial_wait=5):
+                              max_retries=5, initial_wait=5):
         attempt = 0
         wait_time = initial_wait
 
@@ -250,7 +263,7 @@ def main(event, context):
 
         print("Max retries reached, moving on to the next job title.")
         return None
-    
+
     def clean_up_jobs(jobs_df, user_configs):
         db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
         db_go_words = [config['string_value'] for config in user_configs if config['key'] == 'go_words']
@@ -264,7 +277,7 @@ def main(event, context):
         results_df = clean_and_deduplicate_jobs(jobs_df, recent_job_urls,
                                                 stop_words, go_words, candidate_min_salary, similarity_threshold=0.9)
         return results_df
-    
+
     def get_recent_job_urls(days_old=5):
         supabase = get_supabase_client()
         response = (supabase.table('jobs')
@@ -291,8 +304,8 @@ def main(event, context):
             return None
 
     def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words,
-                                candidate_min_salary,
-                                similarity_threshold=0.9):
+                                   candidate_min_salary,
+                                   similarity_threshold=0.9):
         if all_jobs.empty:
             print("No jobs found.")
             return all_jobs
@@ -327,7 +340,8 @@ def main(event, context):
                 print("No salary information available, skipping salary check.")
                 return non_go_words_removed
 
-            non_go_words_removed.loc[:, 'max_amount'] = pd.to_numeric(non_go_words_removed['max_amount'], errors='coerce')
+            non_go_words_removed.loc[:, 'max_amount'] = pd.to_numeric(non_go_words_removed['max_amount'],
+                                                                      errors='coerce')
             min_salary_removed = non_go_words_removed.loc[
                 non_go_words_removed['max_amount'].isnull() |
                 (non_go_words_removed['max_amount'] >= candidate_min_salary)]
@@ -337,14 +351,15 @@ def main(event, context):
             return min_salary_removed
         else:
             return stop_words_removed
-    
+
     def remove_extraneous_columns(df):
-        columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type', 'date_posted',
-                        'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 'emails', 'description',
-                        'searched_title', 'user_id']
+        columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type',
+                           'date_posted',
+                           'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 'emails', 'description',
+                           'searched_title', 'user_id']
         columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
         return df.drop(columns=columns_to_drop)
-    
+
     def remove_duplicates_by_url(df, column_name='job_url'):
         if df.empty:
             print("DataFrame is empty. No duplicates to remove.")
@@ -352,7 +367,7 @@ def main(event, context):
         else:
             # Keep the first occurrence of each unique value in the specified column
             return df.drop_duplicates(subset=[column_name], keep='first')
-        
+
     def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
         if df.empty:
             print("DataFrame is empty. Nothing to de-duplicate.")
@@ -392,35 +407,35 @@ def main(event, context):
         filtered_df = df[df['title'].apply(contains_go_word)].copy()  # Use .copy() to avoid SettingWithCopyWarning
 
         return filtered_df
-    
+
     def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
         db_resume = db_user.get('resume')
         resume = db_resume
 
         derived_data_questions = [('short_summary',
-                                'Provide a short summary of the job.  If the job is fully remote, start with'
-                                ' the sentence "Fully remote! ", otherwise skip this step.  Then, after a'
-                                ' newline, include a single sentence related to the compensation.'
-                                ' Start this sentence with the words "Pay for this role is "'
-                                ' OR simply state "Pay was not specified. "'
-                                ' Next have a newline, then a single'
-                                ' sentence with the minimum number of years experience.  Include the type of'
-                                ' experience being looked for. Next have a newline, followed by key job'
-                                ' responsibilities (no more than 3 sentences).  Finally, have a newline and'
-                                ' follow with job benefits (no more than 3 sentences)'
-                                ),
-                                ('hard_requirements',
-                                'Summarize the hard requirements, things the candidate "must have" from the'
-                                ' description.  Start the list with the number of years experience,'
-                                ' if specified.  Limit this list to 4 bullet points of no more than 1 sentence'
-                                ' each')
-                                ]
+                                   'Provide a short summary of the job.  If the job is fully remote, start with'
+                                   ' the sentence "Fully remote! ", otherwise skip this step.  Then, after a'
+                                   ' newline, include a single sentence related to the compensation.'
+                                   ' Start this sentence with the words "Pay for this role is "'
+                                   ' OR simply state "Pay was not specified. "'
+                                   ' Next have a newline, then a single'
+                                   ' sentence with the minimum number of years experience.  Include the type of'
+                                   ' experience being looked for. Next have a newline, followed by key job'
+                                   ' responsibilities (no more than 3 sentences).  Finally, have a newline and'
+                                   ' follow with job benefits (no more than 3 sentences)'
+                                   ),
+                                  ('hard_requirements',
+                                   'Summarize the hard requirements, things the candidate "must have" from the'
+                                   ' description.  Start the list with the number of years experience,'
+                                   ' if specified.  Limit this list to 4 bullet points of no more than 1 sentence'
+                                   ' each')
+                                  ]
 
         rated_jobs = get_job_ratings(jobs_df, db_user, user_configs)
         todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume, llm="chatgpt")
 
         return todays_jobs
-    
+
     def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claude"):
         if len(derived_data_questions) == 0:
             return jobs_df
@@ -430,7 +445,7 @@ def main(event, context):
 
         for index, row in jobs_df.iterrows():
             job_description = f"Title: {row['title']}\nCompany: {row['company']}\nLocation: {row['location']}\n" \
-                            f"Description: {row['description']}\n"
+                              f"Description: {row['description']}\n"
 
             pay_info = (f"Pays between {row['min_amount']} and {row['max_amount']} on a(n) {row['interval']}'"
                         f" basis.") if len(row['interval']) > 0 else ""
@@ -453,11 +468,12 @@ def main(event, context):
 
         jobs_df_updated = pd.concat([derived_data, jobs_df], axis=1)
         return jobs_df_updated
-    
+
     def ask_chatgpt_about_job(question, job_description, resume=None):
         load_dotenv()
-        system_message = ("You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
-                  "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
+        system_message = (
+            "You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
+            "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
 
         client = OpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),
@@ -488,7 +504,7 @@ def main(event, context):
 
         print("Failed to get a response after multiple retries.")
         return None
-    
+
     def build_context_for_llm(job_description, resume, question):
         """Build the full message to send to the API."""
         full_message = ''
@@ -496,11 +512,12 @@ def main(event, context):
             full_message += "Here is the candidate's resume, below\n"
             full_message += resume + "\n\n"
         if job_description:
-            full_message += ("Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
-                            "===) \n===\n") + job_description + "\n===\n"
+            full_message += (
+                                "Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
+                                "===) \n===\n") + job_description + "\n===\n"
         full_message += "Now for my question: \n" + question
         return full_message
-    
+
     def get_job_ratings(jobs_df, db_user, user_configs):
         print(f'Getting job ratings for {len(jobs_df)} jobs...')
         db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
@@ -522,52 +539,52 @@ def main(event, context):
             job_description = re.sub(' +', ' ', job_description)
 
             full_message = f"<job_titles>{', '.join(job_titles)}</job_titles>\n" + \
-                        f"<desired_words>{', '.join(skill_words)}</desired_words>\n" + \
-                        f"<undesirable_words>{', '.join(stop_words)}</undesirable_words>\n" + \
-                        f"<resume>{resume}</resume>\n" + \
-                        f"<job_title>{job_title}</job_title>\n" + \
-                        f"<job_description>{job_description}</job_description>\n" + \
-"""
-Given the job titles (job_titles tag), desired words (desired_words tag), undesired words 
-(undesirable_words tag), resume (resume tag), job title (job_title tag) and job description 
-(job_description tag), make the following ratings:
-
-1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
-matches their experience and the type of job they desire.
-2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
-experience level (they aren't underqualified or overqualified).
-3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-well the candidate meets the skill requirements for this job.
-4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-well the candidate meets the experience requirements for this job.
-5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
-where 1 is very little chance of this being a good match for the candidate and hiring manager, 
-and 100 being a perfect match where the candidate will have a great chance to succeed in 
-this role.
-
-For experience level, look for cues in the jobs description that list years of experience, 
-then compare that to the level of experience you believe the candidate to have (make an 
-assessment based on year in directly applicable fields of work).
-
-Start your answer immediately with a bulleted list and then give an explanation for why you chose those
-ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
-(where NN is a 2 digit number):
-
-- Candidate desire match: NN
-- Candidate experience match: NN
-- Hiring manager skill match: NN
-- Hiring manager experience match: NN
-- Final overall match assessment: NN
-- Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
-    """
+                           f"<desired_words>{', '.join(skill_words)}</desired_words>\n" + \
+                           f"<undesirable_words>{', '.join(stop_words)}</undesirable_words>\n" + \
+                           f"<resume>{resume}</resume>\n" + \
+                           f"<job_title>{job_title}</job_title>\n" + \
+                           f"<job_description>{job_description}</job_description>\n" + \
+                           """
+                           Given the job titles (job_titles tag), desired words (desired_words tag), undesired words 
+                           (undesirable_words tag), resume (resume tag), job title (job_title tag) and job description 
+                           (job_description tag), make the following ratings:
+                           
+                           1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
+                           matches their experience and the type of job they desire.
+                           2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
+                           experience level (they aren't underqualified or overqualified).
+                           3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+                           well the candidate meets the skill requirements for this job.
+                           4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+                           well the candidate meets the experience requirements for this job.
+                           5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
+                           where 1 is very little chance of this being a good match for the candidate and hiring manager, 
+                           and 100 being a perfect match where the candidate will have a great chance to succeed in 
+                           this role.
+                           
+                           For experience level, look for cues in the jobs description that list years of experience, 
+                           then compare that to the level of experience you believe the candidate to have (make an 
+                           assessment based on year in directly applicable fields of work).
+                           
+                           Start your answer immediately with a bulleted list and then give an explanation for why you chose those
+                           ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
+                           (where NN is a 2 digit number):
+                           
+                           - Candidate desire match: NN
+                           - Candidate experience match: NN
+                           - Hiring manager skill match: NN
+                           - Hiring manager experience match: NN
+                           - Final overall match assessment: NN
+                           - Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
+                               """
 
             # print(f'Full message for job {index}: {full_message}')
             ratings = query_llm(llm="gemini",
                                 model="gemini-1.5-flash",
                                 system="You are a helpful assistant, proficient in giving ratings on how well a candidate"
-                                    " matches a job posting.  You think critically and consider not only the content of"
-                                    " the information given to you, but also the implications and intent of the"
-                                    " information.",
+                                       " matches a job posting.  You think critically and consider not only the content of"
+                                       " the information given to you, but also the implications and intent of the"
+                                       " information.",
                                 messages=[{"role": "user", "content": full_message}])
 
             if ratings is None:
@@ -614,7 +631,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
                     jobs_df.at[index, 'job_score'] = overall_job_score
                 else:
                     print("Error: Unable to split overall job score.")
-                
+
                 if len(guidance) > 0:
                     print(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
                     jobs_df.at[index, 'guidance'] = guidance
@@ -625,7 +642,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
 
         print('Found jobs with scores over 50: ' + str(len(jobs_over_50)))
         return jobs_over_50
-    
+
     def sort_job_data(all_jobs, sort_columns, ascending_orders):
         if all_jobs.empty:
             print("No jobs found.")
@@ -704,9 +721,9 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
 
             association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
             if association_result.data:
-                print("Inserted user job association!") #: {association_result.data}")
+                print("Inserted user job association!")  #: {association_result.data}")
             else:
-                print(f"Error inserting user job association: {association_result.error}")    
+                print(f"Error inserting user job association: {association_result.error}")
 
     def convert_to_int(value):
         try:
@@ -721,6 +738,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
             return pd.to_datetime(value).date().isoformat()
         except (ValueError, TypeError):
             return None
+
     # ================ Main starts ================
     public_users = get_users()
     for user in public_users:
@@ -752,8 +770,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
         # Save to supabase
         save_jobs_to_supabase(user_id, sorted_jobs)
 
-    #send_email_updates()
-
+    # send_email_updates()
 
 # For running locally
 # if __name__ == '__main__':
