@@ -2,9 +2,7 @@ import os
 import time
 import re
 
-from datetime import datetime, timedelta
-from pathlib import Path
-from dotenv import load_dotenv
+from datetime import datetime
 
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
@@ -15,10 +13,13 @@ from openai import OpenAI
 import google.generativeai as gemini
 
 from jobspy import scrape_jobs  # python-jobspy package
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+# import numpy as np
+# from sklearn.feature_extraction.text import TfidfVectorizer
+# from sklearn.metrics.pairwise import cosine_similarity
 
+from flask import Response
+import google.cloud.logging
+import logging
 
 def jobs_app_scheduled(event, context):
     print(event)
@@ -28,94 +29,26 @@ def jobs_app_scheduled(event, context):
 
 def jobs_app_function(context):
     if context.method == 'POST' and 'X-CloudScheduler' in context.headers:
-        # This is a scheduled job execution
         jobs_app_scheduled(context.get_json(), context.context)
         return 'Scheduled job executed successfully', 200
-    else:
-        # This is a regular HTTP request
-        return 'Hello from a regular HTTP request!', 200
 
-    def get_supabase_client():
-        # Load environment variables
-        env_path = Path('.') / '.env'
-        load_dotenv(dotenv_path=env_path)
-
-        # Get Supabase URL and key from environment variables
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY')
-
-        # Initialize Supabase client
-        opts = ClientOptions().replace(schema="jobscraper")
-        supabase: Client = create_client(supabase_url, supabase_key, options=opts)
-
-        return supabase
-
-    def get_users():
-        supabase = get_supabase_client()
-        response = (supabase.table('users')
-                    .select('*')
-                    .neq('resume', None)
-                    .neq('resume', '')
-                    .execute())
-
-        if response.data:
-            return response.data
-        else:
-            print(f"Error fetching roles: {response.get('error')}")
-            return None
-
-    def get_user_configs(user_id):
-        supabase = get_supabase_client()
-        response = (supabase.table('user_configs')
-                    .select('*')
-                    .eq('user_id', user_id)
-                    .execute())
-
-        if response.data:
-            return response.data
-        else:
-            print(f"Error fetching configs or configs were empty")
-            return {}
-
-    def find_best_job_titles(db_user, user_configs):
-        db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
-        db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
-        db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
-        db_resume = db_user.get('resume')
-
-        job_titles = db_job_titles or []
-        skill_words = db_skill_words or []
-
-        full_message = "Below is information that the candidate has provided.\n"
-        full_message += "Provided Job Titles: " + ", ".join(job_titles) + "\n"
-        full_message += "Desired verbiage in job description: " + ", ".join(skill_words) + "\n"
-
-        if db_stop_words and len(db_stop_words) > 0:
-            full_message += ("Candidate does not want jobs that have titles with these words: " +
-                             ", ".join(db_stop_words) + "\n")
-
-        if db_resume is not None:
-            full_message += "In the <resume> tag below is the candidate resume, give extra weight to this information."
-            full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
+    def find_best_job_titles(resume):
+        
+        full_message = "In the <resume> tag below is a candidate resume:"
+        full_message += "\n<resume>\n" + resume + "\n</resume>\n"
+        full_message += """
+You are an expert in searching job postings. You take all the information 
+given to you and come up with a list of 3 most relevant job titles. Only list the 
+titles in a comma-separated list, no other information is needed.  
+IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.
+"""
 
         titles = query_llm(llm="anthropic",
-                           # llm="openai",
-                           # "gpt-3.5-turbo",
-                           # model="gpt-4o-2024-05-13",
                            model="claude-3-opus-20240229",
-                           system="You are an expert in searching job listings. You take all the information"
-                                  " given to you and come up with a list of 4 most relevant job titles. You do not"
-                                  " have to use the job titles provided by the candidate, but take them into"
-                                  " consideration.  Only list the titles in a comma-separated list, "
-                                  " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
-                                  " A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.",
+                           system="You are a helpful no-nonsense assistant.  You listen to directions carefully and follow them to the letter.",
                            messages=[{"role": "user", "content": full_message}])
 
-        if titles is None:  # Fall back if LLM failed
-            titles = db_job_titles or []
-        else:
-            titles = [title.strip() for title in titles.split(",")] if titles else []
-
+        titles = [title.strip() for title in titles.split(",")] if titles else []
         return titles
 
     def query_llm(llm, model, system, messages=[]):
@@ -128,7 +61,7 @@ def jobs_app_function(context):
                     # add the system message to the messages
                     messages.insert(0, {"role": "system", "content": system})
                     client = OpenAI(
-                        api_key=os.environ.get("OPENAI_API_KEY"),
+                        api_key=os.environ.get("OPENAI_API_KEY", 'Specified environment variable OPENAI_API_KEY is not set.'),
                     )
                     completion = client.chat.completions.create(
                         messages=messages,
@@ -138,7 +71,7 @@ def jobs_app_function(context):
                     )
                     return completion.choices[0].message.content
                 elif llm == "anthropic":
-                    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+                    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", 'Specified environment variable ANTHROPIC_API_KEY is not set.')
                     client = anthropic.Anthropic(api_key=anthropic_api_key)
                     message = client.messages.create(
                         model=model,
@@ -149,7 +82,7 @@ def jobs_app_function(context):
                     )
                     return message.content[0].text
                 elif llm == "gemini":
-                    gemini.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+                    gemini.configure(api_key=os.environ.get("GEMINI_API_KEY", 'Specified environment variable GEMINI_API_KEY is not set.'))
                     model = gemini.GenerativeModel(model)  # 'gemini-1.5-flash'
                     response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
                     return response.text
@@ -157,58 +90,42 @@ def jobs_app_function(context):
                     return None
 
             except Exception as e:
-                print(
+                logging.error(
                     f"An unexpected error occurred: {e}. Attempt {attempt + 1} of {max_retries}. Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
                 wait_time *= 2  # Exponential backoff
                 if attempt == max_retries - 1:
-                    print(f"Failed after {max_retries} attempts.")
+                    logging.error(f"Failed after {max_retries} attempts.")
                     return None
 
         return None
 
-    def get_jobs_for_user(db_user, job_titles):
-        print(f"Searching for job titles: {','.join(job_titles)}")
-
-        db_is_remote = db_user.get('remote_preference')
-        db_location = db_user.get('location')
-        db_distance = db_user.get('distance')
-
-        match db_is_remote:
-            case "YES":
-                is_remote = True
-            case "NO":
-                is_remote = False
-            case "ONLY":
-                is_remote = True
-                location = 'USA'
-            case _:
-                is_remote = False
-
-        distance = db_distance if db_distance is not None else 20
-        if distance < 20:
-            distance = 20
-
-        db_results_wanted = db_user.get('results_wanted')
-        results_wanted = db_results_wanted if db_results_wanted is not None else 20
-        scraped_data = scrape_job_data(
-            user_id,
-            job_titles,
-            job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],
-            location=db_location,
-            hours_old=24,
-            results_wanted=results_wanted,
-            distance=distance,
-            is_remote=is_remote)
-
+    def get_jobs_for_user(job_site, user_id, job_titles):
+        scraped_data = pd.DataFrame()
+        try:
+            print(f"Searching for job titles: {','.join(job_titles)} on {job_site}...")
+            is_remote = True
+            results_wanted = 3
+            scraped_data = scrape_job_data(
+                user_id,
+                job_titles,
+                job_sites=[job_site],
+                location='USA',
+                hours_old=24,
+                results_wanted=20,
+                distance=20,
+                is_remote=is_remote)
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+            return pd.DataFrame()
+        
         # Filter out jobs where is_remote is True or is_remote is not specified
-        if db_is_remote == "ONLY":
+        if is_remote == "ONLY":
             scraped_data = scraped_data[scraped_data['is_remote'] != False]
-            scraped_data = scraped_data[
-                scraped_data['is_remote'] != True & scraped_data['description'].str.contains("remote", case=False,
-                                                                                             na=False)]
-
+            scraped_data = scraped_data[scraped_data['is_remote'] != True & scraped_data['description'].str.contains("remote", case=False, na=False)]
+        
         return scraped_data
+        
 
     def scrape_job_data(user_id, job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
         all_jobs = pd.DataFrame()
@@ -255,7 +172,7 @@ def jobs_app_function(context):
                 return jobs_df
 
             except Exception as e:
-                print(f"An error occurred: {e}")
+                logging.error(f"An error occurred: {e}")
                 print(f"Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
                 wait_time *= 2  # Exponential backoff
@@ -264,57 +181,12 @@ def jobs_app_function(context):
         print("Max retries reached, moving on to the next job title.")
         return None
 
-    def clean_up_jobs(jobs_df, user_configs):
-        db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
-        db_go_words = [config['string_value'] for config in user_configs if config['key'] == 'go_words']
-        db_candidate_min_salary = user.get('min_salary')
-
-        stop_words = db_stop_words or []
-        go_words = db_go_words or []
-        candidate_min_salary = db_candidate_min_salary if db_candidate_min_salary is not None else 0
-
-        recent_job_urls = get_recent_job_urls(3)
-        results_df = clean_and_deduplicate_jobs(jobs_df, recent_job_urls,
-                                                stop_words, go_words, candidate_min_salary, similarity_threshold=0.9)
-        return results_df
-
-    def get_recent_job_urls(days_old=5):
-        supabase = get_supabase_client()
-        response = (supabase.table('jobs')
-                    .select('url, date_posted, date_pulled')
-                    .execute())
-
-        if response.data or response.data == []:
-            cutoff_date = datetime.now() - timedelta(days=days_old)
-            urls = []
-            for item in response.data:
-                date_posted = item.get('date_posted')
-                date_pulled = item.get('date_pulled')
-                if date_posted:
-                    job_date = pd.to_datetime(date_posted)
-                else:
-                    job_date = pd.to_datetime(date_pulled)
-
-                if job_date and job_date > cutoff_date:
-                    urls.append(item['url'])
-
-            return urls
-        else:
-            print(f"Error fetching job URLs: {response.error}")
-            return None
-
-    def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words,
-                                   candidate_min_salary,
-                                   similarity_threshold=0.9):
+    def clean_and_deduplicate_jobs(all_jobs, similarity_threshold=0.9):
         if all_jobs.empty:
             print("No jobs found.")
             return all_jobs
         else:
             print(f"Cleaning {len(all_jobs)} jobs")
-
-        # remove all jobs that are already in the database (based on URL)
-        all_jobs = all_jobs[~all_jobs['job_url'].isin(recent_job_urls)]
-        print(f"Removed jobs already in the database, now we have {len(all_jobs)} jobs")
 
         all_jobs_cols_removed = remove_extraneous_columns(all_jobs)
 
@@ -324,33 +196,10 @@ def jobs_app_function(context):
         deduped_by_url = remove_duplicates_by_url(long_desc_jobs, 'job_url')
         print(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
 
-        unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
-        print(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
+        # unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
+        # print(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
 
-        stop_words_removed = remove_titles_matching_stop_words(unsimilar, stop_words)
-        print(f"Removed titles matching stop words, now we have {len(stop_words_removed)} jobs")
-
-        non_go_words_removed = stop_words_removed if go_words == [] else remove_titles_not_matching_go_words(
-            stop_words_removed, go_words)
-        print(f"Removed titles not matching go words, now we have {len(non_go_words_removed)} jobs")
-
-        # Remove all jobs where the max_amount column is less than candidate_min_salary (leave the row if max_amount is NaN)
-        if 'max_amount' in non_go_words_removed.columns:
-            if (non_go_words_removed.empty) or (non_go_words_removed['max_amount'].isnull().all()):
-                print("No salary information available, skipping salary check.")
-                return non_go_words_removed
-
-            non_go_words_removed.loc[:, 'max_amount'] = pd.to_numeric(non_go_words_removed['max_amount'],
-                                                                      errors='coerce')
-            min_salary_removed = non_go_words_removed.loc[
-                non_go_words_removed['max_amount'].isnull() |
-                (non_go_words_removed['max_amount'] >= candidate_min_salary)]
-
-            print(f"Removed jobs with max_amount less than min_salary, now we have {len(min_salary_removed)} jobs")
-
-            return min_salary_removed
-        else:
-            return stop_words_removed
+        return deduped_by_url
 
     def remove_extraneous_columns(df):
         columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type',
@@ -368,50 +217,29 @@ def jobs_app_function(context):
             # Keep the first occurrence of each unique value in the specified column
             return df.drop_duplicates(subset=[column_name], keep='first')
 
-    def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
-        if df.empty:
-            print("DataFrame is empty. Nothing to de-duplicate.")
-            return df
+    # def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
+    #     if df.empty:
+    #         print("DataFrame is empty. Nothing to de-duplicate.")
+    #         return df
 
-        df = df.fillna("")
-        combined_text = df['title'] + " " + df['company'] + " " + df['description']
+    #     df = df.fillna("")
+    #     combined_text = df['title'] + " " + df['company'] + " " + df['description']
 
-        # Use TF-IDF to vectorize the combined text
-        vectorizer = TfidfVectorizer().fit_transform(combined_text)
-        # Compute cosine similarity matrix
-        cosine_sim = cosine_similarity(vectorizer, vectorizer)
-        # Find indices to drop (where similarity is above the threshold, excluding self-comparison)
-        to_drop = np.where(
-            (cosine_sim > similarity_threshold).astype(int) &
-            (np.ones_like(cosine_sim) - np.eye(len(cosine_sim), dtype=bool)).astype(int)
-        )
-        # Unique job indices to keep (inverting the logic to keep the first occurrence and remove subsequent similar ones)
-        indices_to_keep = np.setdiff1d(np.arange(len(df)), np.unique(to_drop[0]))
+    #     # Use TF-IDF to vectorize the combined text
+    #     vectorizer = TfidfVectorizer().fit_transform(combined_text)
+    #     # Compute cosine similarity matrix
+    #     cosine_sim = cosine_similarity(vectorizer, vectorizer)
+    #     # Find indices to drop (where similarity is above the threshold, excluding self-comparison)
+    #     to_drop = np.where(
+    #         (cosine_sim > similarity_threshold).astype(int) &
+    #         (np.ones_like(cosine_sim) - np.eye(len(cosine_sim), dtype=bool)).astype(int)
+    #     )
+    #     # Unique job indices to keep (inverting the logic to keep the first occurrence and remove subsequent similar ones)
+    #     indices_to_keep = np.setdiff1d(np.arange(len(df)), np.unique(to_drop[0]))
 
-        return df.iloc[indices_to_keep]
+    #     return df.iloc[indices_to_keep]
 
-    def remove_titles_matching_stop_words(df, stop_words):
-        if df.empty:
-            print("DataFrame is empty. No stop words to remove.")
-            return df
-
-        for stop_word in stop_words:
-            df = df[~df['title'].str.contains(stop_word, case=False)]
-
-        return df
-
-    def remove_titles_not_matching_go_words(df, go_words):
-        def contains_go_word(title):
-            return any(word in title for word in go_words)
-
-        filtered_df = df[df['title'].apply(contains_go_word)].copy()  # Use .copy() to avoid SettingWithCopyWarning
-
-        return filtered_df
-
-    def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
-        db_resume = db_user.get('resume')
-        resume = db_resume
-
+    def get_jobs_with_derived(jobs_df, resume):
         derived_data_questions = [('short_summary',
                                    'Provide a short summary of the job.  If the job is fully remote, start with'
                                    ' the sentence "Fully remote! ", otherwise skip this step.  Then, after a'
@@ -431,12 +259,12 @@ def jobs_app_function(context):
                                    ' each')
                                   ]
 
-        rated_jobs = get_job_ratings(jobs_df, db_user, user_configs)
-        todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume, llm="chatgpt")
+        rated_jobs = get_job_ratings(jobs_df, resume)
+        todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume)
 
         return todays_jobs
 
-    def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claude"):
+    def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
         if len(derived_data_questions) == 0:
             return jobs_df
 
@@ -451,134 +279,78 @@ def jobs_app_function(context):
                         f" basis.") if len(row['interval']) > 0 else ""
 
             job_description += pay_info
-
             print(f"{index}: Processing: {row['title']} at {row['company']}")
 
             for column_name, question in derived_data_questions:
-                if llm == "chatgpt":
-                    answer = ask_chatgpt_about_job(question, job_description, resume)
-                elif llm == "claude":
-                    print("Claude not configured for derived data.")
-                    break
-                else:
-                    print("No LLM specified for derived data.")
-                    break
+                full_message = build_context_for_llm(job_description, resume, question)
+                full_message = consolidate_text(full_message)
+
+                answer = query_llm(llm='openai', model='gpt-3.5-turbo',
+                                system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
+                                     " them to the letter. Only return plain text, not markdown or HTML.",
+                                messages=[{"role": "user", "content": full_message}])
 
                 derived_data.at[index, column_name] = answer
 
         jobs_df_updated = pd.concat([derived_data, jobs_df], axis=1)
         return jobs_df_updated
 
-    def ask_chatgpt_about_job(question, job_description, resume=None):
-        load_dotenv()
-        system_message = (
-            "You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
-            "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
-
-        client = OpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY"),
-        )
-
-        full_message = build_context_for_llm(job_description, resume, question)
-
-        model = "gpt-3.5-turbo"
-        max_retries = 5
-        wait_time = 5
-
-        for attempt in range(max_retries):
-            try:
-                completion = client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": system_message + "\nOnly return text, not markdown or HTML."},
-                        {"role": "user", "content": full_message}
-                    ],
-                    model=model,
-                )
-
-                return completion.choices[0].message.content
-
-            except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-                time.sleep(wait_time)
-                wait_time *= 2
-
-        print("Failed to get a response after multiple retries.")
-        return None
-
     def build_context_for_llm(job_description, resume, question):
-        """Build the full message to send to the API."""
-        full_message = ''
+        full_message = ""
         if resume is not None:
-            full_message += "Here is the candidate's resume, below\n"
-            full_message += resume + "\n\n"
+            full_message += "Here is the candidate's resume: <resume>" + resume + "</resume> "
         if job_description:
-            full_message += (
-                                "Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
-                                "===) \n===\n") + job_description + "\n===\n"
-        full_message += "Now for my question: \n" + question
+            full_message += "Here is some information about a job. <job>" + job_description + "</job> "
+        full_message += "Now for my question: " + question + " "
         return full_message
 
-    def get_job_ratings(jobs_df, db_user, user_configs):
+    def get_job_ratings(jobs_df, resume):
         print(f'Getting job ratings for {len(jobs_df)} jobs...')
-        db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
-        db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
-        db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
-        db_resume = db_user.get('resume')
 
-        job_titles = db_job_titles or []
-        skill_words = db_skill_words or []
-        stop_words = db_stop_words or []
-
-        resume = db_resume.replace('\r', ' ').replace('\n', ' ')
-        resume = re.sub(' +', ' ', resume)
+        resume = consolidate_text(resume)
 
         for index, row in jobs_df.iterrows():
             job_title = row['title']
             job_description = row['description']
-            job_description = job_description.replace('\n', ' ')
-            job_description = re.sub(' +', ' ', job_description)
+            
+            job_description = consolidate_text(job_description)
 
-            full_message = f"<job_titles>{', '.join(job_titles)}</job_titles>\n" + \
-                           f"<desired_words>{', '.join(skill_words)}</desired_words>\n" + \
-                           f"<undesirable_words>{', '.join(stop_words)}</undesirable_words>\n" + \
-                           f"<resume>{resume}</resume>\n" + \
+            full_message = f"<resume>{resume}</resume>\n" + \
                            f"<job_title>{job_title}</job_title>\n" + \
                            f"<job_description>{job_description}</job_description>\n" + \
-                           """
-                           Given the job titles (job_titles tag), desired words (desired_words tag), undesired words 
-                           (undesirable_words tag), resume (resume tag), job title (job_title tag) and job description 
-                           (job_description tag), make the following ratings:
-                           
-                           1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
-                           matches their experience and the type of job they desire.
-                           2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
-                           experience level (they aren't underqualified or overqualified).
-                           3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-                           well the candidate meets the skill requirements for this job.
-                           4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-                           well the candidate meets the experience requirements for this job.
-                           5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
-                           where 1 is very little chance of this being a good match for the candidate and hiring manager, 
-                           and 100 being a perfect match where the candidate will have a great chance to succeed in 
-                           this role.
-                           
-                           For experience level, look for cues in the jobs description that list years of experience, 
-                           then compare that to the level of experience you believe the candidate to have (make an 
-                           assessment based on year in directly applicable fields of work).
-                           
-                           Start your answer immediately with a bulleted list and then give an explanation for why you chose those
-                           ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
-                           (where NN is a 2 digit number):
-                           
-                           - Candidate desire match: NN
-                           - Candidate experience match: NN
-                           - Hiring manager skill match: NN
-                           - Hiring manager experience match: NN
-                           - Final overall match assessment: NN
-                           - Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
-                               """
+"""
+Given the user resume (resume tag), job title (job_title tag) and job description 
+(job_description tag), make the following ratings:
 
-            # print(f'Full message for job {index}: {full_message}')
+1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
+matches their experience and the type of job they desire.
+2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
+experience level (they aren't underqualified or overqualified).
+3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+well the candidate meets the skill requirements for this job.
+4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+well the candidate meets the experience requirements for this job.
+5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
+where 1 is very little chance of this being a good match for the candidate and hiring manager, 
+and 100 being a perfect match where the candidate will have a great chance to succeed in 
+this role.
+
+For experience level, look for cues in the jobs description that list years of experience, 
+then compare that to the level of experience you believe the candidate to have (make an 
+assessment based on year in directly applicable fields of work).
+
+Start your answer immediately with a bulleted list and then give an explanation for why you chose those
+ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
+(where NN is a 2 digit number):
+
+- Candidate desire match: NN
+- Candidate experience match: NN
+- Hiring manager skill match: NN
+- Hiring manager experience match: NN
+- Final overall match assessment: NN
+- Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
+"""
+
             ratings = query_llm(llm="gemini",
                                 model="gemini-1.5-flash",
                                 system="You are a helpful assistant, proficient in giving ratings on how well a candidate"
@@ -601,28 +373,28 @@ def jobs_app_function(context):
                     desire_score = desire_score_split[1].strip()
                     jobs_df.at[index, 'desire_score'] = desire_score
                 else:
-                    print("Error: Unable to split desire score.")
+                    logging.error("Error: Unable to split desire score.")
 
                 experience_score_split = ratings[1].split(":")
                 if len(experience_score_split) == 2:
                     experience_score = experience_score_split[1].strip()
                     jobs_df.at[index, 'experience_score'] = experience_score
                 else:
-                    print("Error: Unable to split experience score.")
+                    logging.error("Error: Unable to split experience score.")
 
                 meets_requirements_score_split = ratings[2].split(":")
                 if len(meets_requirements_score_split) == 2:
                     meets_requirements_score = meets_requirements_score_split[1].strip()
                     jobs_df.at[index, 'meets_requirements_score'] = meets_requirements_score
                 else:
-                    print("Error: Unable to split meets requirements score.")
+                    logging.error("Error: Unable to split meets requirements score.")
 
                 meets_experience_score_split = ratings[3].split(":")
                 if len(meets_experience_score_split) == 2:
                     meets_experience_score = meets_experience_score_split[1].strip()
                     jobs_df.at[index, 'meets_experience_score'] = meets_experience_score
                 else:
-                    print("Error: Unable to split meets experience score.")
+                    logging.error("Error: Unable to split meets experience score.")
 
                 overall_job_score_split = ratings[4].split(":")
                 if len(overall_job_score_split) == 2:
@@ -630,42 +402,34 @@ def jobs_app_function(context):
                     print(f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
                     jobs_df.at[index, 'job_score'] = overall_job_score
                 else:
-                    print("Error: Unable to split overall job score.")
+                    logging.error("Error: Unable to split overall job score.")
 
                 if len(guidance) > 0:
                     print(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
                     jobs_df.at[index, 'guidance'] = guidance
             else:
-                print("Error: Ratings list does not have enough elements.")
+                logging.error("Error: Ratings list does not have enough elements.")
 
         jobs_over_50 = jobs_df[jobs_df['job_score'].astype(float) > 50]
 
         print('Found jobs with scores over 50: ' + str(len(jobs_over_50)))
         return jobs_over_50
 
-    def sort_job_data(all_jobs, sort_columns, ascending_orders):
-        if all_jobs.empty:
-            print("No jobs found.")
-            return all_jobs
-
-        return all_jobs.sort_values(by=sort_columns, ascending=ascending_orders)
+    def consolidate_text(text):
+        consolidated = text.replace('\r', ' ').replace('\n', ' ')
+        consolidated = re.sub(' +', ' ', consolidated)
+        return consolidated
 
     def save_jobs_to_supabase(user_id, df):
         print(f"Saving {len(df)} jobs to Supabase...")
-        # Load environment variables
-        env_path = Path('.') / '.env'
-        load_dotenv(dotenv_path=env_path)
 
-        # Get Supabase URL and key from environment variables
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY')
+        supabase_url = os.environ.get('SUPABASE_URL', 'Specified environment variable SUPABASE_URL is not set.')
+        supabase_key = os.environ.get('SUPABASE_KEY', 'Specified environment variable SUPABASE_KEY is not set.')
 
-        # Initialize Supabase client
         opts = ClientOptions().replace(schema="jobscraper")
         supabase: Client = create_client(supabase_url, supabase_key, options=opts)
 
         for index, row in df.iterrows():
-
             try:
                 job_score = int(row.get('job_score'))
             except ValueError:
@@ -704,8 +468,8 @@ def jobs_app_function(context):
             if result.data:
                 print(f"Inserted job!")
             else:
-                print(f"Error inserting job: {result.error}")
-                continue;
+                logging.error(f"Error inserting job: {result.error}")
+                continue
 
             users_jobs_row = {
                 'user_id': user_id,
@@ -723,7 +487,7 @@ def jobs_app_function(context):
             if association_result.data:
                 print("Inserted user job association!")  #: {association_result.data}")
             else:
-                print(f"Error inserting user job association: {association_result.error}")
+                logging.error(f"Error inserting user job association: {association_result.error}")
 
     def convert_to_int(value):
         try:
@@ -740,37 +504,33 @@ def jobs_app_function(context):
             return None
 
     # ================ Main starts ================
-    public_users = get_users()
-    for user in public_users:
-        user_id = user.get('id')
-        print(f"Processing user: {user_id} ({user.get('name')})")
+    client = google.cloud.logging.Client(project="project")
+    client.setup_logging()
 
-        if len(user.get('resume')) < 100:
-            print("Resume is too short, skipping.")
-            continue
+    data = context.get_json()
 
-        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
-        #     continue
+    resume = data.get('resume')
+    user_id = data.get('user_id')
 
-        configs = get_user_configs(user_id)
+    llm_job_titles = find_best_job_titles(resume)
+    all_jobs = []
+    job_sites = ['indeed', 'glassdoor', 'zip_recruiter', 'linkedin']
+    for job_site in job_sites:
+        all_jobs = get_jobs_for_user(job_site, user_id, llm_job_titles)
+        if len(all_jobs) > 0:
+            break
 
-        llm_job_titles = find_best_job_titles(user, configs)
-        all_jobs = get_jobs_for_user(user, llm_job_titles)
+    cleaned_jobs = clean_and_deduplicate_jobs(all_jobs, similarity_threshold=0.9)
 
-        cleaned_jobs = clean_up_jobs(all_jobs, configs)
+    if len(cleaned_jobs) == 0:
+        return Response(response = "No jobs found after cleaning and deduplicating", status = 200)
 
-        if len(cleaned_jobs) == 0:
-            print("No jobs found, trying the next user.")
-            time.sleep(15)
-            continue
+    # Just keep the top 10 jobs
+    cleaned_jobs = cleaned_jobs.head(10)
+    jobs_with_derived = get_jobs_with_derived(cleaned_jobs, resume)
+    save_jobs_to_supabase(user_id, jobs_with_derived)
 
-        jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, llm_job_titles, configs)
-        sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
-
-        # Save to supabase
-        save_jobs_to_supabase(user_id, sorted_jobs)
-
-    # send_email_updates()
+    return Response(response = "Jobs pulled, cleaned, and saved to Supabase", status = 200)
 
 # For running locally
 # if __name__ == '__main__':

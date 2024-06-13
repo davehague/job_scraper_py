@@ -1,9 +1,8 @@
 anthropic==0.20.0
 google-generativeai==0.6.0
-numpy==1.24.2
 openai==1.14.3
 pandas==2.2.1
 python-dotenv==1.0.1
-python-jobspy==1.1.51
-scikit-learn==1.4.1.post1
+python-jobspy==1.1.57
 supabase==2.4.5
+google-cloud-logging==3.5.0
