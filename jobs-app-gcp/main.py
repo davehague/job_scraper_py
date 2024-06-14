@@ -22,8 +22,8 @@ import google.cloud.logging
 import logging
 
 def jobs_app_scheduled(event, context):
-    print(event)
-    print(context)
+    logging.info(event)
+    logging.info(context)
     return "Hello world!"
 
 
@@ -103,7 +103,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
     def get_jobs_for_user(job_site, user_id, job_titles):
         scraped_data = pd.DataFrame()
         try:
-            print(f"Searching for job titles: {','.join(job_titles)} on {job_site}...")
+            logging.info(f"Searching for job titles: {','.join(job_titles)} on {job_site}...")
             is_remote = True
             results_wanted = 3
             scraped_data = scrape_job_data(
@@ -173,31 +173,31 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
             except Exception as e:
                 logging.error(f"An error occurred: {e}")
-                print(f"Retrying in {wait_time} seconds...")
+                logging.info(f"Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
                 wait_time *= 2  # Exponential backoff
                 attempt += 1
 
-        print("Max retries reached, moving on to the next job title.")
+        logging.info("Max retries reached, moving on to the next job title.")
         return None
 
     def clean_and_deduplicate_jobs(all_jobs, similarity_threshold=0.9):
         if all_jobs.empty:
-            print("No jobs found.")
+            logging.info("No jobs found.")
             return all_jobs
         else:
-            print(f"Cleaning {len(all_jobs)} jobs")
+            logging.info(f"Cleaning {len(all_jobs)} jobs")
 
         all_jobs_cols_removed = remove_extraneous_columns(all_jobs)
 
         long_desc_jobs = all_jobs_cols_removed[all_jobs_cols_removed['description'].str.len() >= 1000]
-        print(f"Removed jobs with short descriptions, now we have {len(long_desc_jobs)} jobs")
+        logging.info(f"Removed jobs with short descriptions, now we have {len(long_desc_jobs)} jobs")
 
         deduped_by_url = remove_duplicates_by_url(long_desc_jobs, 'job_url')
-        print(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
+        logging.info(f"Removed duplicates by URL, now we have {len(deduped_by_url)} jobs")
 
         # unsimilar = remove_duplicates_by_similarity(deduped_by_url, similarity_threshold)
-        # print(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
+        # logging.info(f"Removed duplicates by similarity, now we have {len(unsimilar)} jobs")
 
         return deduped_by_url
 
@@ -211,7 +211,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     def remove_duplicates_by_url(df, column_name='job_url'):
         if df.empty:
-            print("DataFrame is empty. No duplicates to remove.")
+            logging.info("DataFrame is empty. No duplicates to remove.")
             return df
         else:
             # Keep the first occurrence of each unique value in the specified column
@@ -219,7 +219,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     # def remove_duplicates_by_similarity(df, similarity_threshold=0.9):
     #     if df.empty:
-    #         print("DataFrame is empty. Nothing to de-duplicate.")
+    #         logging.info("DataFrame is empty. Nothing to de-duplicate.")
     #         return df
 
     #     df = df.fillna("")
@@ -268,7 +268,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
         if len(derived_data_questions) == 0:
             return jobs_df
 
-        print("Generating derived data...")
+        logging.info("Generating derived data...")
         derived_data = pd.DataFrame(index=jobs_df.index)
 
         for index, row in jobs_df.iterrows():
@@ -279,7 +279,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                         f" basis.") if len(row['interval']) > 0 else ""
 
             job_description += pay_info
-            print(f"{index}: Processing: {row['title']} at {row['company']}")
+            logging.info(f"{index}: Processing: {row['title']} at {row['company']}")
 
             for column_name, question in derived_data_questions:
                 full_message = build_context_for_llm(job_description, resume, question)
@@ -305,7 +305,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
         return full_message
 
     def get_job_ratings(jobs_df, resume):
-        print(f'Getting job ratings for {len(jobs_df)} jobs...')
+        logging.info(f'Getting job ratings for {len(jobs_df)} jobs...')
 
         resume = consolidate_text(resume)
 
@@ -360,10 +360,10 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
                                 messages=[{"role": "user", "content": full_message}])
 
             if ratings is None:
-                print("LLM failed to generate ratings.")
+                logging.info("LLM failed to generate ratings.")
                 continue
 
-            print(f"Ratings for job {index}: {ratings}")
+            logging.info(f"Ratings for job {index}: {ratings}")
             guidance = ratings.split("Explanation of ratings:")[1].strip()
             ratings = ratings.split("\n")
 
@@ -399,20 +399,20 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
                 overall_job_score_split = ratings[4].split(":")
                 if len(overall_job_score_split) == 2:
                     overall_job_score = overall_job_score_split[1].strip()
-                    print(f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
+                    logging.info(f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
                     jobs_df.at[index, 'job_score'] = overall_job_score
                 else:
                     logging.error("Error: Unable to split overall job score.")
 
                 if len(guidance) > 0:
-                    print(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
+                    logging.info(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
                     jobs_df.at[index, 'guidance'] = guidance
             else:
                 logging.error("Error: Ratings list does not have enough elements.")
 
         jobs_over_50 = jobs_df[jobs_df['job_score'].astype(float) > 50]
 
-        print('Found jobs with scores over 50: ' + str(len(jobs_over_50)))
+        logging.info('Found jobs with scores over 50: ' + str(len(jobs_over_50)))
         return jobs_over_50
 
     def consolidate_text(text):
@@ -421,7 +421,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
         return consolidated
 
     def save_jobs_to_supabase(user_id, df):
-        print(f"Saving {len(df)} jobs to Supabase...")
+        logging.info(f"Saving {len(df)} jobs to Supabase...")
 
         supabase_url = os.environ.get('SUPABASE_URL', 'Specified environment variable SUPABASE_URL is not set.')
         supabase_key = os.environ.get('SUPABASE_KEY', 'Specified environment variable SUPABASE_KEY is not set.')
@@ -433,7 +433,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
             try:
                 job_score = int(row.get('job_score'))
             except ValueError:
-                print("job_score cannot be converted to an integer")
+                logging.info("job_score cannot be converted to an integer")
                 continue
 
             if job_score < 50:
@@ -441,7 +441,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
 
             url_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
             if url_exists.data:
-                print(f"Job with URL {row['job_url']} already exists, skipping...")
+                logging.info(f"Job with URL {row['job_url']} already exists, skipping...")
                 continue
 
             new_job = {
@@ -462,11 +462,11 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
                 'date_pulled': datetime.now().isoformat()
             }
 
-            print(new_job)
+            logging.info(new_job)
             result = supabase.table('jobs').insert(new_job).execute()
 
             if result.data:
-                print(f"Inserted job!")
+                logging.info(f"Inserted job!")
             else:
                 logging.error(f"Error inserting job: {result.error}")
                 continue
@@ -485,7 +485,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
 
             association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
             if association_result.data:
-                print("Inserted user job association!")  #: {association_result.data}")
+                logging.info("Inserted user job association!")  #: {association_result.data}")
             else:
                 logging.error(f"Error inserting user job association: {association_result.error}")
 
@@ -526,9 +526,17 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
         return Response(response = "No jobs found after cleaning and deduplicating", status = 200)
 
     # Just keep the top 10 jobs
-    cleaned_jobs = cleaned_jobs.head(10)
-    jobs_with_derived = get_jobs_with_derived(cleaned_jobs, resume)
+    cleaned_jobs_subset = cleaned_jobs.head(10)
+
+    jobs_with_derived = get_jobs_with_derived(cleaned_jobs_subset, resume)
     save_jobs_to_supabase(user_id, jobs_with_derived)
+
+    # If jobs_with_derived doesn't have a job over 80, get the next 10 jobs
+    if len(jobs_with_derived[jobs_with_derived['job_score'].astype(float) > 80]) == 0:
+        logging.info("No jobs over 80 found, getting the next 10 jobs...")
+        cleaned_jobs_second = cleaned_jobs[~cleaned_jobs['job_url'].isin(jobs_with_derived['job_url'])].head(10)
+        jobs_with_derived_second = get_jobs_with_derived(cleaned_jobs_second, resume)
+        save_jobs_to_supabase(user_id, jobs_with_derived_second)
 
     return Response(response = "Jobs pulled, cleaned, and saved to Supabase", status = 200)
 
