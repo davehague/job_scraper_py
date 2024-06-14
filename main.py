@@ -20,7 +20,8 @@ def consolidate_text(text):
     return consolidated
 
 
-def get_job_ratings(jobs_df, db_user, user_configs):
+def get_job_ratings(original_df, db_user, user_configs):
+    jobs_df = original_df.copy()
     db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
     db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
     db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
@@ -168,6 +169,7 @@ def find_best_job_titles(db_user, user_configs):
                          ", ".join(db_stop_words) + "\n")
 
     if db_resume is not None:
+        db_resume = consolidate_text(db_resume)
         full_message += "In the <resume> tag below is the candidate resume, give extra weight to this information."
         full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
 
@@ -335,7 +337,7 @@ if __name__ == '__main__':
         if len(cleaned_jobs) > 15:
             print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 15.")
             cleaned_jobs = cleaned_jobs.head(15)
-            
+
         jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, llm_job_titles, configs)
         sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
 

@@ -19,7 +19,6 @@ def query_llm(llm, model_name, system, messages=[]):
     for attempt in range(max_retries):
         try:
             if llm == "openai":
-                # add the system message to the messages
                 messages.insert(0, {"role": "system", "content": system})
                 client = OpenAI(
                     api_key=os.environ.get("OPENAI_API_KEY"),

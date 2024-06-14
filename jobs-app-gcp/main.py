@@ -35,6 +35,7 @@ def jobs_app_function(context):
 
     def find_best_job_titles(resume):
 
+        resume = consolidate_text(resume)
         full_message = "In the <resume> tag below is a candidate resume:"
         full_message += "\n<resume>\n" + resume + "\n</resume>\n"
         full_message += """
@@ -45,21 +46,20 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 """
 
         titles = query_llm(llm="anthropic",
-                           model="claude-3-opus-20240229",
+                           model_name="claude-3-opus-20240229",
                            system="You are a helpful no-nonsense assistant.  You listen to directions carefully and follow them to the letter.",
                            messages=[{"role": "user", "content": full_message}])
 
         titles = [title.strip() for title in titles.split(",")] if titles else []
         return titles
 
-    def query_llm(llm, model, system, messages=[]):
+    def query_llm(llm, model_name, system, messages=[]):
         max_retries = 3
         wait_time = 3
 
         for attempt in range(max_retries):
             try:
                 if llm == "openai":
-                    # add the system message to the messages
                     messages.insert(0, {"role": "system", "content": system})
                     client = OpenAI(
                         api_key=os.environ.get("OPENAI_API_KEY",
@@ -68,7 +68,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                     completion = client.chat.completions.create(
                         messages=messages,
                         max_tokens=256,
-                        model=model,
+                        model=model_name,
                         temperature=1.0
                     )
                     return completion.choices[0].message.content
@@ -77,7 +77,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                                                        'Specified environment variable ANTHROPIC_API_KEY is not set.')
                     client = anthropic.Anthropic(api_key=anthropic_api_key)
                     message = client.messages.create(
-                        model=model,
+                        model=model_name,
                         max_tokens=256,
                         temperature=1.0,
                         system=system,
@@ -87,7 +87,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 elif llm == "gemini":
                     gemini.configure(api_key=os.environ.get("GEMINI_API_KEY",
                                                             'Specified environment variable GEMINI_API_KEY is not set.'))
-                    model = gemini.GenerativeModel(model)  # 'gemini-1.5-flash'
+                    model = gemini.GenerativeModel(model_name)  # 'gemini-1.5-flash'
                     response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
                     return response.text
                 else:
@@ -208,9 +208,8 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     def remove_extraneous_columns(df):
         columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type',
-                           'date_posted',
-                           'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 'emails', 'description',
-                           'searched_title', 'user_id']
+                           'date_posted', 'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 
+                           'emails', 'description', 'searched_title', 'user_id']
         columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
         return df.drop(columns=columns_to_drop)
 
@@ -290,7 +289,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 full_message = build_context_for_llm(job_description, resume, question)
                 full_message = consolidate_text(full_message)
 
-                answer = query_llm(llm='openai', model='gpt-3.5-turbo',
+                answer = query_llm(llm='openai', model_name='gpt-3.5-turbo',
                                    system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
                                           " them to the letter. Only return plain text, not markdown or HTML.",
                                    messages=[{"role": "user", "content": full_message}])
@@ -309,7 +308,8 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
         full_message += "Now for my question: " + question + " "
         return full_message
 
-    def get_job_ratings(jobs_df, resume):
+    def get_job_ratings(original_df, resume):
+        jobs_df = original_df.copy()
         logging.info(f'Getting job ratings for {len(jobs_df)} jobs...')
 
         resume = consolidate_text(resume)
@@ -343,30 +343,26 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                            then compare that to the level of experience you believe the candidate to have (make an 
                            assessment based on year in directly applicable fields of work).
                            
-                           Start your answer immediately with a bulleted list. Then, address the candidate directly with
-                           single sentence responses for each of the following (see the example, below):
-                           - How you think the candidate would feel about this job.  
-                           - How you think the hiring manager would feel about the candidate in relation to this job. 
-                           - Your overall thoughts about the match.
-                           
-                           Keep your response for each of the above to a single sentence.
-                           
-                           Example output is below (where NN is a 2 digit number):
-                           
-                           - Candidate desire match: NN
-                           - Candidate experience match: NN
-                           - Hiring manager skill match: NN
-                           - Hiring manager experience match: NN
-                           - Final overall match assessment: NN
-                           - Explanation of ratings: 
-                           You may <like or dislike> this job because of the following reasons: <reasons>.  
-                           The hiring manager may think you would be a <good or bad or reasonable> fit for this job because of <reasons>. 
-                           Overall, I think <your overall thoughts about the match between the user and the job>.
+                           Start your answer immediately with a bulleted list as shown in the example below. Always include 
+                           the left side prefix from the template below in your answer (including for the explanation). 
+                           Address the candidate directly, closely following the template set in the example. NN should be 
+                           replaced in the template with a 2 digit number each time.
                            """
 
             full_message = consolidate_text(full_message)
+            full_message += \
+"""
+- Candidate desire match: NN
+- Candidate experience match: NN
+- Hiring manager skill match: NN
+- Hiring manager experience match: NN
+- Final overall match assessment: NN
+- Explanation of ratings: 
+You may <love, like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <amazing, good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+"""
+
             ratings = query_llm(llm="gemini",
-                                model="gemini-1.5-flash",
+                                model_name="gemini-1.5-flash",
                                 system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                                 messages=[{"role": "user", "content": full_message}])
 
@@ -375,7 +371,12 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 continue
 
             logging.info(f"Ratings for job {index}: {ratings}")
-            guidance = ratings.split("Explanation of ratings:")[1].strip()
+            guidance_split = ratings.split("Explanation of ratings:")
+            if len(guidance_split) == 2:
+                guidance = guidance_split[1].strip()
+            else:
+                guidance = ""
+
             ratings = ratings.split("\n")
 
             if len(ratings) >= 6:
@@ -471,35 +472,41 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 'comp_currency': None if pd.isna(row.get('currency')) else row.get('currency'),
                 'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
                 'description': row.get('description'),
-                'date_pulled': datetime.now().isoformat()
-            }
-
-            logging.info(new_job)
-            result = supabase.table('jobs').insert(new_job).execute()
-
-            if result.data:
-                logging.info(f"Inserted job!")
-            else:
-                logging.error(f"Error inserting job: {result.error}")
-                continue
-
-            users_jobs_row = {
-                'user_id': user_id,
-                'job_id': result.data[0].get('id'),
-                'desire_score': row.get('desire_score'),
-                'experience_score': row.get('experience_score'),
-                'meets_requirements_score': row.get('meets_requirements_score'),
-                'meets_experience_score': row.get('meets_experience_score'),
-                'score': row.get('job_score'),
-                'guidance': row.get('guidance'),
+                'date_pulled': datetime.now().isoformat(),
                 'searched_title': row.get('searched_title')
             }
+            
+            logging.info(new_job)
+            try:
+                result = supabase.table('jobs').insert(new_job).execute()
 
-            association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
-            if association_result.data:
-                logging.info("Inserted user job association!")  #: {association_result.data}")
-            else:
-                logging.error(f"Error inserting user job association: {association_result.error}")
+                if result.data:
+                    print(f"Inserted job: {result.data}")
+                else:
+                    print(f"Error inserting job: {result.error}")
+                    continue;
+
+                users_jobs_row = {
+                    'user_id': user_id,
+                    'job_id': result.data[0].get('id'),
+                    'desire_score': row.get('desire_score'),
+                    'experience_score': row.get('experience_score'),
+                    'meets_requirements_score': row.get('meets_requirements_score'),
+                    'meets_experience_score': row.get('meets_experience_score'),
+                    'score': row.get('job_score'),
+                    'guidance': row.get('guidance')
+                }
+
+                association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
+                if association_result.data:
+                    logging.info("Inserted user job association!")  #: {association_result.data}")
+                else:
+                    logging.error(f"Error inserting user job association: {association_result.error}")
+            except Exception as e:
+                print(f"Error inserting job: {e}")
+                print(f"Error on job data: {new_job}")
+                print(f"Error on user-job data: {users_jobs_row}")
+                continue
 
     def convert_to_int(value):
         try:
