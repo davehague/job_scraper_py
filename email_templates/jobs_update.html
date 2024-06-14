@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Job updates from the Job App</title>
+    <style>
+        body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f4f4f4;
+                color: #333;
+              }
+              .left {
+                padding: 10px;
+                vertical-align: top;
+              }
+              .right {
+                padding: 10px 20px;
+                vertical-align: top;
+              }
+              .job {
+                -webkit-box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                -moz-box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                width: 600px;
+                padding: 10px;
+              }
+              .title-and-score {
+                width: auto;
+              }
+              .title {
+                margin-top: 10px;
+                font-size: 16px;
+                font-weight: 700;
+                width: 80%;
+              }
+              .secondary-title {
+                margin: 5px 0;
+                font-weight: 400;
+                font-size: 16px;
+              }
+              .summary {
+                font-size: 14px;
+                margin: 10px 0;
+                font-weight: 400;
+              }
+              .score-circle {
+                background-color: #59c9a5;
+                border-radius: 50%;
+                color: #333;
+                font-weight: 700;
+                font-size: 24px;
+                height: 64px;
+                width: 64px;
+                text-align: center;
+                line-height: 64px;
+                transition: background-color 0.3s ease;
+              }
+              .score-circle .score-text {
+                color: white;
+              }
+    </style>
+</head>
+<body>
+<p>
+    Hi {{ user_name }}! Good news, we scoured the internet and found new
+    jobs that we think you'll love and would be good matches for you. Check out the top jobs
+    below or click <a href="https://jobs.davehague.com/">here</a> to see ALL your results!
+</p>
+{% for job in jobs %}
+<table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+        <td class="left">
+            <div class="score-circle" style="background-color: {{ job.score_color }}">
+                <span class="score-text">{{ job.score }}</span>
+            </div>
+        </td>
+        <td class="right">
+            <h2 class="title">{{ job.title }}</h2>
+            <h3 class="secondary-title">{{ job.company }} - {{ job.location }}</h3>
+            <h3 class="secondary-title">{{ job.salary }}</h3>
+            <p class="summary">{{ job.summary }}</p>
+        </td>
+    </tr>
+</table>
+{% endfor %}
+<p>{% if total_job_count > 3 %}...and {{ total_job_count - 3 }} more!{% endif %}. Click <a
+        href="https://jobs.davehague.com/">here</a> to log in for more details and for full results.</p>
+</body>
+</html>
