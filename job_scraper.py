@@ -127,7 +127,13 @@ def remove_titles_matching_stop_words(df, stop_words):
         print("DataFrame is empty. No stop words to remove.")
         return df
 
+    if len(stop_words) == 0:
+        print("No stop words provided. Skipping removal.")
+        return df
+
     for stop_word in stop_words:
+        if len(stop_word) == 0:
+            continue
         df = df[~df['title'].str.contains(stop_word, case=False)]
 
     return df

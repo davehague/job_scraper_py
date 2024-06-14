@@ -109,7 +109,6 @@ def save_jobs_to_supabase(user_id, df):
     supabase: Client = create_client(supabase_url, supabase_key, options=opts)
 
     for index, row in df.iterrows():
-
         try:
             job_score = int(row.get('job_score'))
         except ValueError:
@@ -139,31 +138,38 @@ def save_jobs_to_supabase(user_id, df):
             'comp_currency': None if pd.isna(row.get('currency')) else row.get('currency'),
             'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
             'description': row.get('description'),
-            'date_pulled': datetime.now().isoformat()
-        }
-
-        print(new_job)
-        result = supabase.table('jobs').insert(new_job).execute()
-
-        if result.data:
-            print(f"Inserted job: {result.data}")
-        else:
-            print(f"Error inserting job: {result.error}")
-            continue;
-
-        users_jobs_row = {
-            'user_id': user_id,
-            'job_id': result.data[0].get('id'),
-            'desire_score': row.get('desire_score'),
-            'experience_score': row.get('experience_score'),
-            'meets_requirements_score': row.get('meets_requirements_score'),
-            'meets_experience_score': row.get('meets_experience_score'),
-            'score': row.get('job_score'),
+            'date_pulled': datetime.now().isoformat(),
             'searched_title': row.get('searched_title')
         }
 
-        association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
-        if association_result.data:
-            print(f"Inserted user job: {association_result.data}")
-        else:
-            print(f"Error inserting user job: {association_result.error}")
+        print(new_job)
+        try:
+            result = supabase.table('jobs').insert(new_job).execute()
+
+            if result.data:
+                print(f"Inserted job: {result.data}")
+            else:
+                print(f"Error inserting job: {result.error}")
+                continue;
+
+            users_jobs_row = {
+                'user_id': user_id,
+                'job_id': result.data[0].get('id'),
+                'desire_score': row.get('desire_score'),
+                'experience_score': row.get('experience_score'),
+                'meets_requirements_score': row.get('meets_requirements_score'),
+                'meets_experience_score': row.get('meets_experience_score'),
+                'score': row.get('job_score'),
+                'guidance': row.get('guidance')
+            }
+
+            association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
+            if association_result.data:
+                print(f"Inserted user job: {association_result.data}")
+            else:
+                print(f"Error inserting user job: {association_result.error}")
+        except Exception as e:
+            print(f"Error inserting job: {e}")
+            print(f"Error on job data: {new_job}")
+            print(f"Error on user-job data: {users_jobs_row}")
+            continue

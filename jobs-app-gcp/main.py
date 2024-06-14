@@ -21,6 +21,7 @@ from flask import Response
 import google.cloud.logging
 import logging
 
+
 def jobs_app_scheduled(event, context):
     logging.info(event)
     logging.info(context)
@@ -33,7 +34,7 @@ def jobs_app_function(context):
         return 'Scheduled job executed successfully', 200
 
     def find_best_job_titles(resume):
-        
+
         full_message = "In the <resume> tag below is a candidate resume:"
         full_message += "\n<resume>\n" + resume + "\n</resume>\n"
         full_message += """
@@ -61,7 +62,8 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                     # add the system message to the messages
                     messages.insert(0, {"role": "system", "content": system})
                     client = OpenAI(
-                        api_key=os.environ.get("OPENAI_API_KEY", 'Specified environment variable OPENAI_API_KEY is not set.'),
+                        api_key=os.environ.get("OPENAI_API_KEY",
+                                               'Specified environment variable OPENAI_API_KEY is not set.'),
                     )
                     completion = client.chat.completions.create(
                         messages=messages,
@@ -71,7 +73,8 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                     )
                     return completion.choices[0].message.content
                 elif llm == "anthropic":
-                    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", 'Specified environment variable ANTHROPIC_API_KEY is not set.')
+                    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY",
+                                                       'Specified environment variable ANTHROPIC_API_KEY is not set.')
                     client = anthropic.Anthropic(api_key=anthropic_api_key)
                     message = client.messages.create(
                         model=model,
@@ -82,7 +85,8 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                     )
                     return message.content[0].text
                 elif llm == "gemini":
-                    gemini.configure(api_key=os.environ.get("GEMINI_API_KEY", 'Specified environment variable GEMINI_API_KEY is not set.'))
+                    gemini.configure(api_key=os.environ.get("GEMINI_API_KEY",
+                                                            'Specified environment variable GEMINI_API_KEY is not set.'))
                     model = gemini.GenerativeModel(model)  # 'gemini-1.5-flash'
                     response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
                     return response.text
@@ -118,14 +122,15 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
         except Exception as e:
             logging.error(f"An error occurred: {e}")
             return pd.DataFrame()
-        
+
         # Filter out jobs where is_remote is True or is_remote is not specified
         if is_remote == "ONLY":
             scraped_data = scraped_data[scraped_data['is_remote'] != False]
-            scraped_data = scraped_data[scraped_data['is_remote'] != True & scraped_data['description'].str.contains("remote", case=False, na=False)]
-        
+            scraped_data = scraped_data[
+                scraped_data['is_remote'] != True & scraped_data['description'].str.contains("remote", case=False,
+                                                                                             na=False)]
+
         return scraped_data
-        
 
     def scrape_job_data(user_id, job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
         all_jobs = pd.DataFrame()
@@ -286,9 +291,9 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 full_message = consolidate_text(full_message)
 
                 answer = query_llm(llm='openai', model='gpt-3.5-turbo',
-                                system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
-                                     " them to the letter. Only return plain text, not markdown or HTML.",
-                                messages=[{"role": "user", "content": full_message}])
+                                   system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
+                                          " them to the letter. Only return plain text, not markdown or HTML.",
+                                   messages=[{"role": "user", "content": full_message}])
 
                 derived_data.at[index, column_name] = answer
 
@@ -312,51 +317,57 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
         for index, row in jobs_df.iterrows():
             job_title = row['title']
             job_description = row['description']
-            
             job_description = consolidate_text(job_description)
 
             full_message = f"<resume>{resume}</resume>\n" + \
                            f"<job_title>{job_title}</job_title>\n" + \
                            f"<job_description>{job_description}</job_description>\n" + \
-"""
-Given the user resume (resume tag), job title (job_title tag) and job description 
-(job_description tag), make the following ratings:
+                           """
+                           Given the user resume (resume tag), job title (job_title tag) and job description 
+                           (job_description tag), make the following ratings:
+                           
+                           1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
+                           matches their experience and the type of job they desire.
+                           2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
+                           experience level (they aren't underqualified or overqualified).
+                           3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+                           well the candidate meets the skill requirements for this job.
+                           4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+                           well the candidate meets the experience requirements for this job.
+                           5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
+                           where 1 is very little chance of this being a good match for the candidate and hiring manager, 
+                           and 100 being a perfect match where the candidate will have a great chance to succeed in 
+                           this role.
+                           
+                           For experience level, look for cues in the jobs description that list years of experience, 
+                           then compare that to the level of experience you believe the candidate to have (make an 
+                           assessment based on year in directly applicable fields of work).
+                           
+                           Start your answer immediately with a bulleted list. Then, address the candidate directly with
+                           single sentence responses for each of the following (see the example, below):
+                           - How you think the candidate would feel about this job.  
+                           - How you think the hiring manager would feel about the candidate in relation to this job. 
+                           - Your overall thoughts about the match.
+                           
+                           Keep your response for each of the above to a single sentence.
+                           
+                           Example output is below (where NN is a 2 digit number):
+                           
+                           - Candidate desire match: NN
+                           - Candidate experience match: NN
+                           - Hiring manager skill match: NN
+                           - Hiring manager experience match: NN
+                           - Final overall match assessment: NN
+                           - Explanation of ratings: 
+                           You may <like or dislike> this job because of the following reasons: <reasons>.  
+                           The hiring manager may think you would be a <good or bad or reasonable> fit for this job because of <reasons>. 
+                           Overall, I think <your overall thoughts about the match between the user and the job>.
+                           """
 
-1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
-matches their experience and the type of job they desire.
-2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
-experience level (they aren't underqualified or overqualified).
-3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-well the candidate meets the skill requirements for this job.
-4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-well the candidate meets the experience requirements for this job.
-5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
-where 1 is very little chance of this being a good match for the candidate and hiring manager, 
-and 100 being a perfect match where the candidate will have a great chance to succeed in 
-this role.
-
-For experience level, look for cues in the jobs description that list years of experience, 
-then compare that to the level of experience you believe the candidate to have (make an 
-assessment based on year in directly applicable fields of work).
-
-Start your answer immediately with a bulleted list and then give an explanation for why you chose those
-ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
-(where NN is a 2 digit number):
-
-- Candidate desire match: NN
-- Candidate experience match: NN
-- Hiring manager skill match: NN
-- Hiring manager experience match: NN
-- Final overall match assessment: NN
-- Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
-"""
-
+            full_message = consolidate_text(full_message)
             ratings = query_llm(llm="gemini",
                                 model="gemini-1.5-flash",
-                                system="You are a helpful assistant, proficient in giving ratings on how well a candidate"
-                                       " matches a job posting.  You think critically and consider not only the content of"
-                                       " the information given to you, but also the implications and intent of the"
-                                       " information.",
+                                system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                                 messages=[{"role": "user", "content": full_message}])
 
             if ratings is None:
@@ -399,7 +410,8 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
                 overall_job_score_split = ratings[4].split(":")
                 if len(overall_job_score_split) == 2:
                     overall_job_score = overall_job_score_split[1].strip()
-                    logging.info(f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
+                    logging.info(
+                        f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
                     jobs_df.at[index, 'job_score'] = overall_job_score
                 else:
                     logging.error("Error: Unable to split overall job score.")
@@ -523,7 +535,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
     cleaned_jobs = clean_and_deduplicate_jobs(all_jobs, similarity_threshold=0.9)
 
     if len(cleaned_jobs) == 0:
-        return Response(response = "No jobs found after cleaning and deduplicating", status = 200)
+        return Response(response="No jobs found after cleaning and deduplicating", status=200)
 
     # Just keep the top 10 jobs
     cleaned_jobs_subset = cleaned_jobs.head(10)
@@ -538,7 +550,7 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
         jobs_with_derived_second = get_jobs_with_derived(cleaned_jobs_second, resume)
         save_jobs_to_supabase(user_id, jobs_with_derived_second)
 
-    return Response(response = "Jobs pulled, cleaned, and saved to Supabase", status = 200)
+    return Response(response="Jobs pulled, cleaned, and saved to Supabase", status=200)
 
 # For running locally
 # if __name__ == '__main__':

@@ -14,6 +14,12 @@ from llm import query_llm
 from send_emails import send_email_updates
 
 
+def consolidate_text(text):
+    consolidated = text.replace('\r', ' ').replace('\n', ' ')
+    consolidated = re.sub(' +', ' ', consolidated)
+    return consolidated
+
+
 def get_job_ratings(jobs_df, db_user, user_configs):
     db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
     db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
@@ -24,14 +30,12 @@ def get_job_ratings(jobs_df, db_user, user_configs):
     skill_words = db_skill_words or []
     stop_words = db_stop_words or []
 
-    resume = db_resume.replace('\r', ' ').replace('\n', ' ')
-    resume = re.sub(' +', ' ', resume)
+    resume = consolidate_text(db_resume)
 
     for index, row in jobs_df.iterrows():
         job_title = row['title']
         job_description = row['description']
-        job_description = job_description.replace('\n', ' ')
-        job_description = re.sub(' +', ' ', job_description)
+        job_description = consolidate_text(job_description)
 
         full_message = f"<job_titles>{', '.join(job_titles)}</job_titles>\n" + \
                        f"<desired_words>{', '.join(skill_words)}</desired_words>\n" + \
@@ -40,46 +44,47 @@ def get_job_ratings(jobs_df, db_user, user_configs):
                        f"<job_title>{job_title}</job_title>\n" + \
                        f"<job_description>{job_description}</job_description>\n" + \
                        """
-Given the job titles (job_titles tag), desired words (desired_words tag), undesired words 
-(undesirable_words tag), resume (resume tag), job title (job_title tag) and job description 
-(job_description tag), make the following ratings:
+                       Given the job titles (job_titles tag), desired words (desired_words tag), undesired words 
+                       (undesirable_words tag), resume (resume tag), job title (job_title tag) and job description 
+                       (job_description tag), make the following ratings:
+                       
+                       1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
+                       matches their experience and the type of job they desire.
+                       2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
+                       experience level (they aren't underqualified or overqualified).
+                       3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+                       well the candidate meets the skill requirements for this job.
+                       4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
+                       well the candidate meets the experience requirements for this job.
+                       5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
+                       where 1 is very little chance of this being a good match for the candidate and hiring manager, 
+                       and 100 being a perfect match where the candidate will have a great chance to succeed in 
+                       this role.
+                       
+                       For experience level, look for cues in the jobs description that list years of experience, 
+                       then compare that to the level of experience you believe the candidate to have (make an 
+                       assessment based on year in directly applicable fields of work).
+                       
+                       Start your answer immediately with a bulleted list as shown in the example below. Always include 
+                       the left side prefix from the template below in your answer (including for the explanation). 
+                       Address the candidate directly, closely following the template set in the example. NN should be 
+                       replaced in the template with a 2 digit number each time.
+                       """
+        full_message = consolidate_text(full_message)
+        full_message += \
+            """
+            - Candidate desire match: NN
+            - Candidate experience match: NN
+            - Hiring manager skill match: NN
+            - Hiring manager experience match: NN
+            - Final overall match assessment: NN
+            - Explanation of ratings: 
+            You may <love, like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <amazing, good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+            """
 
-1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
-matches their experience and the type of job they desire.
-2) How the candidate would rate this job on a scale from 1 to 100 as a match for their 
-experience level (they aren't underqualified or overqualified).
-3) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-well the candidate meets the skill requirements for this job.
-4) How a hiring manager for this job would rate the candidate on a scale from 1 to 100 on how 
-well the candidate meets the experience requirements for this job.
-5) Consider the results from steps 1 through 5 then give a final assessment from 1 to 100,
-where 1 is very little chance of this being a good match for the candidate and hiring manager, 
-and 100 being a perfect match where the candidate will have a great chance to succeed in 
-this role.
-
-For experience level, look for cues in the jobs description that list years of experience, 
-then compare that to the level of experience you believe the candidate to have (make an 
-assessment based on year in directly applicable fields).
-
-Start your answer immediately with a bulleted list and then give an explanation for why you chose those
-ratings. In the explanation only use plain text paragraphs without formatting. Example output is below 
-(where NN is a 2 digit number):
-
-- Candidate desire match: NN
-- Candidate experience match: NN
-- Hiring manager skill match: NN
-- Hiring manager experience match: NN
-- Final overall match assessment: NN
-- Explanation of ratings: <Your explanation about why you chose those ratings, in paragraph form>
-"""
-
-        print(f"{index}: Adding a rating to: {row['title']} at {row['company']}")
         ratings = query_llm(llm="gemini",
-                            model="gemini-1.5-flash",
-                            system="You are a helpful assistant, proficient in giving ratings on how well a candidate"
-                                   " matches a job posting.  You think critically and consider not only the content of"
-                                   " the information given to you, but also the implications and intent of the"
-                                   " information.",
+                            model_name="gemini-1.5-flash",
+                            system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                             messages=[{"role": "user", "content": full_message}])
 
         if ratings is None:
@@ -87,7 +92,13 @@ ratings. In the explanation only use plain text paragraphs without formatting. E
             continue
 
         print(f"Ratings for job {index}: {ratings}")
-        guidance = ratings.split("Explanation of ratings:")[1].strip()
+
+        guidance_split = ratings.split("Explanation of ratings:")
+        if len(guidance_split) == 2:
+            guidance = guidance_split[1].strip()
+        else:
+            guidance = ""
+
         ratings = ratings.split("\n")
 
         if len(ratings) >= 6:
@@ -161,10 +172,7 @@ def find_best_job_titles(db_user, user_configs):
         full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
 
     titles = query_llm(llm="anthropic",
-                       # llm="openai",
-                       # "gpt-3.5-turbo",
-                       # model="gpt-4o-2024-05-13",
-                       model="claude-3-opus-20240229",
+                       model_name="claude-3-opus-20240229",
                        system="You are an expert in searching job listings. You take all the information"
                               " given to you and come up with a list of 4 most relevant job titles. You do not"
                               " have to use the job titles provided by the candidate, but take them into"
@@ -324,6 +332,10 @@ if __name__ == '__main__':
             time.sleep(15)
             continue
 
+        if len(cleaned_jobs) > 15:
+            print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 15.")
+            cleaned_jobs = cleaned_jobs.head(15)
+            
         jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, llm_job_titles, configs)
         sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
 

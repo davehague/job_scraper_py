@@ -42,7 +42,7 @@ def send_email_updates():
 
             comp_min = job['comp_min']
             comp_max = job['comp_max']
-            salary = f"${comp_min:,} - ${comp_max:,}" if comp_min and comp_max else "Not provided"
+            salary = f"${comp_min:,} - ${comp_max:,}" if comp_min and comp_max else "Pay was not provided"
 
             guidance = job['guidance']
             email_jobs_data.append({

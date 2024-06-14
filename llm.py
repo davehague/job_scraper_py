@@ -12,7 +12,7 @@ system_message = ("You are a helpful assistant, highly skilled in ruthlessly dis
                   "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
 
 
-def query_llm(llm, model, system, messages=[]):
+def query_llm(llm, model_name, system, messages=[]):
     max_retries = 3
     wait_time = 3
 
@@ -27,7 +27,7 @@ def query_llm(llm, model, system, messages=[]):
                 completion = client.chat.completions.create(
                     messages=messages,
                     max_tokens=256,
-                    model=model,
+                    model=model_name,
                     temperature=1.0
                 )
                 return completion.choices[0].message.content
@@ -35,7 +35,7 @@ def query_llm(llm, model, system, messages=[]):
                 anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
                 client = anthropic.Anthropic(api_key=anthropic_api_key)
                 message = client.messages.create(
-                    model=model,
+                    model=model_name,
                     max_tokens=256,
                     temperature=1.0,
                     system=system,
@@ -44,7 +44,7 @@ def query_llm(llm, model, system, messages=[]):
                 return message.content[0].text
             elif llm == "gemini":
                 gemini.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-                model = gemini.GenerativeModel(model)  # 'gemini-1.5-flash'
+                model = gemini.GenerativeModel(model_name)  # 'gemini-1.5-flash'
                 response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
                 return response.text
             else:
