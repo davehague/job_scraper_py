@@ -165,7 +165,7 @@ def save_jobs_to_supabase(user_id, df):
 
             association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
             if association_result.data:
-                print(f"Inserted user job: {association_result.data}")
+                print(f"Inserted user job association!")  #: {association_result.data}")
             else:
                 print(f"Error inserting user job: {association_result.error}")
         except Exception as e:

@@ -173,20 +173,23 @@ def find_best_job_titles(db_user, user_configs):
         full_message += "In the <resume> tag below is the candidate resume, give extra weight to this information."
         full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
 
-    titles = query_llm(llm="anthropic",
-                       model_name="claude-3-opus-20240229",
-                       system="You are an expert in searching job listings. You take all the information"
-                              " given to you and come up with a list of 4 most relevant job titles. You do not"
-                              " have to use the job titles provided by the candidate, but take them into"
-                              " consideration.  Only list the titles in a comma-separated list, "
-                              " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
-                              " A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.",
-                       messages=[{"role": "user", "content": full_message}])
-
-    if titles is None:  # Fall back if LLM failed
-        titles = db_job_titles or []
+    if not db_job_titles:
+        print("No job titles found in the database, using LLM to find job titles.")
+        titles = query_llm(llm="anthropic",
+                           model_name="claude-3-opus-20240229",
+                           system="You are an expert in searching job listings. You take all the information"
+                                  " given to you and come up with a list of 4 most relevant job titles. You do not"
+                                  " have to use the job titles provided by the candidate, but take them into"
+                                  " consideration.  Only list the titles in a comma-separated list, "
+                                  " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
+                                  " A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.",
+                           messages=[{"role": "user", "content": full_message}])
+        if titles is None:  # Fall back if LLM failed
+            titles = []
+        else:
+            titles = [title.strip() for title in titles.split(",")] if titles else []
     else:
-        titles = [title.strip() for title in titles.split(",")] if titles else []
+        titles = db_job_titles
 
     return titles
 
@@ -287,7 +290,8 @@ if __name__ == '__main__':
 
     if SCHEDULED:
         downloads_path = Path(os.path.join(os.path.expanduser('~'), 'Downloads'))
-        log_file = downloads_path / 'job_scraper.log'
+        todays_date = time.strftime("%Y-%m-%d")
+        log_file = downloads_path / f'job_scraper_{todays_date}.log'
         logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 
 
