@@ -9,7 +9,8 @@ import logging
 from pathlib import Path
 import sys
 
-from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users, get_recent_job_urls
+from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users, get_recent_job_urls, \
+    save_titles_for_user
 from llm import query_llm
 from send_emails import send_email_updates
 
@@ -178,7 +179,7 @@ def find_best_job_titles(db_user, user_configs):
         titles = query_llm(llm="anthropic",
                            model_name="claude-3-opus-20240229",
                            system="You are an expert in searching job listings. You take all the information"
-                                  " given to you and come up with a list of 4 most relevant job titles. You do not"
+                                  " given to you and come up with a list of 3 most relevant job titles. You do not"
                                   " have to use the job titles provided by the candidate, but take them into"
                                   " consideration.  Only list the titles in a comma-separated list, "
                                   " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
@@ -188,6 +189,7 @@ def find_best_job_titles(db_user, user_configs):
             titles = []
         else:
             titles = [title.strip() for title in titles.split(",")] if titles else []
+            save_titles_for_user(db_user.get('id'), titles)
     else:
         titles = db_job_titles
 

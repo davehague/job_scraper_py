@@ -39,6 +39,21 @@ def get_supabase_client():
     return supabase
 
 
+def save_titles_for_user(user_id, titles):
+    supabase = get_supabase_client()
+
+    for title in titles:
+        response = (supabase.table('user_configs')
+                    .insert({'user_id': user_id, 'key': 'job_titles', 'string_value': title})
+                    .execute())
+
+    if response.data:
+        print(f"Inserted titles for user {user_id}: {titles}")
+    else:
+        print(f"Error inserting titles for user {user_id}: {response.error}")
+        return None
+
+
 def get_user_configs(user_id):
     supabase = get_supabase_client()
     response = (supabase.table('user_configs')
