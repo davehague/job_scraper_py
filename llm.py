@@ -42,8 +42,27 @@ def query_llm(llm, model_name, system, messages=[]):
                 )
                 return message.content[0].text
             elif llm == "gemini":
+                safe = [
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_NONE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_NONE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_NONE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_NONE",
+                    }
+                ]
+
                 gemini.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-                model = gemini.GenerativeModel(model_name)  # 'gemini-1.5-flash'
+                model = gemini.GenerativeModel(model_name=model_name, safety_settings=safe)  # 'gemini-1.5-flash'
                 response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
                 return response.text
             else:

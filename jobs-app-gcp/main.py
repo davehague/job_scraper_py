@@ -85,9 +85,28 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                     )
                     return message.content[0].text
                 elif llm == "gemini":
+                    safe = [
+                        {
+                            "category": "HARM_CATEGORY_HARASSMENT",
+                            "threshold": "BLOCK_NONE",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_HATE_SPEECH",
+                            "threshold": "BLOCK_NONE",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            "threshold": "BLOCK_NONE",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            "threshold": "BLOCK_NONE",
+                        }
+                    ]
+
                     gemini.configure(api_key=os.environ.get("GEMINI_API_KEY",
                                                             'Specified environment variable GEMINI_API_KEY is not set.'))
-                    model = gemini.GenerativeModel(model_name)  # 'gemini-1.5-flash'
+                    model = gemini.GenerativeModel(model_name=model_name, safety_settings=safe)  # 'gemini-1.5-flash'
                     response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
                     return response.text
                 else:
@@ -208,7 +227,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     def remove_extraneous_columns(df):
         columns_to_keep = ['site', 'job_url', 'job_url_direct', 'title', 'company', 'location', 'job_type',
-                           'date_posted', 'interval', 'min_amount', 'max_amount', 'currency', 'is_remote', 
+                           'date_posted', 'interval', 'min_amount', 'max_amount', 'currency', 'is_remote',
                            'emails', 'description', 'searched_title', 'user_id']
         columns_to_drop = [col for col in df.columns if col not in columns_to_keep]
         return df.drop(columns=columns_to_drop)
@@ -351,15 +370,15 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
             full_message = consolidate_text(full_message)
             full_message += \
-"""
-- Candidate desire match: NN
-- Candidate experience match: NN
-- Hiring manager skill match: NN
-- Hiring manager experience match: NN
-- Final overall match assessment: NN
-- Explanation of ratings: 
-You may <love, like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <amazing, good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
-"""
+                """
+                - Candidate desire match: NN
+                - Candidate experience match: NN
+                - Hiring manager skill match: NN
+                - Hiring manager experience match: NN
+                - Final overall match assessment: NN
+                - Explanation of ratings: 
+                You may <love, like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <amazing, good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+                """
 
             ratings = query_llm(llm="gemini",
                                 model_name="gemini-1.5-flash",
@@ -475,7 +494,7 @@ You may <love, like, be lukewarm on, or dislike> this job because of the followi
                 'date_pulled': datetime.now().isoformat(),
                 'searched_title': row.get('searched_title')
             }
-            
+
             logging.info(new_job)
             try:
                 result = supabase.table('jobs').insert(new_job).execute()
