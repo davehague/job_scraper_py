@@ -81,7 +81,7 @@ def get_job_ratings(original_df, db_user, user_configs):
             - Hiring manager experience match: NN
             - Final overall match assessment: NN
             - Explanation of ratings: 
-            You may <love, like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <amazing, good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+            You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
             """
 
         ratings = query_llm(llm="gemini",
@@ -320,6 +320,9 @@ if __name__ == '__main__':
     for user in public_users:
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
+
+        # if not user.get('is_public'):
+        #     continue
 
         # if user_id != '6ad24019-8c95-4dda-bf6d-7f2c57ab9915':
         #     continue

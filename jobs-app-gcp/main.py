@@ -377,7 +377,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 - Hiring manager experience match: NN
                 - Final overall match assessment: NN
                 - Explanation of ratings: 
-                You may <love, like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <amazing, good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+                You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
                 """
 
             ratings = query_llm(llm="gemini",
@@ -471,61 +471,85 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
             if job_score < 50:
                 continue
 
-            url_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
-            if url_exists.data:
-                logging.info(f"Job with URL {row['job_url']} already exists, skipping...")
+            job_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
+            if not job_exists.data:
+                logging.info(f"Job with URL {row['job_url']} does not exist, creating new job...")
+                result = create_new_job(supabase, row)
+                job_id = result.data[0].get('id')
+                if not result.data:
+                    logging.info(f"Error inserting job: {result.error}")
+                    continue
+            else:
+                job_id = job_exists.data[0].get('id')
+
+            user_has_recommendation = (supabase.table('recent_high_score_jobs')
+                                       .select('id')
+                                       .eq('user_id', user_id)
+                                       .eq('url', row['job_url'])
+                                       .execute())
+
+            if user_has_recommendation.data:
+                logging.info(f"Job with URL {row['job_url']} already exists for user {user_id}, skipping...")
                 continue
 
-            new_job = {
-                'title': row.get('title'),
-                'company': row.get('company'),
-                'short_summary': row.get('short_summary'),
-                'hard_requirements': row.get('hard_requirements'),
-                'job_site': row.get('site'),
-                'url': row.get('job_url'),
-                'location': None if pd.isna(row.get('location')) else row.get('location'),
-                'date_posted': convert_to_date(row.get('date_posted')),
-                'comp_interval': None if pd.isna(row.get('interval')) else row.get('interval'),
-                'comp_min': convert_to_int(row.get('min_amount')),
-                'comp_max': convert_to_int(row.get('max_amount')),
-                'comp_currency': None if pd.isna(row.get('currency')) else row.get('currency'),
-                'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
-                'description': row.get('description'),
-                'date_pulled': datetime.now().isoformat(),
-                'searched_title': row.get('searched_title')
-            }
+            create_new_job_association(supabase, user_id, job_id, row)
 
-            logging.info(new_job)
-            try:
-                result = supabase.table('jobs').insert(new_job).execute()
+    def create_new_job(supabase, row):
+        new_job = {
+            'title': row.get('title'),
+            'company': row.get('company'),
+            'short_summary': row.get('short_summary'),
+            'hard_requirements': row.get('hard_requirements'),
+            'job_site': row.get('site'),
+            'url': row.get('job_url'),
+            'location': None if pd.isna(row.get('location')) else row.get('location'),
+            'date_posted': convert_to_date(row.get('date_posted')),
+            'comp_interval': None if pd.isna(row.get('interval')) else row.get('interval'),
+            'comp_min': convert_to_int(row.get('min_amount')),
+            'comp_max': convert_to_int(row.get('max_amount')),
+            'comp_currency': None if pd.isna(row.get('currency')) else row.get('currency'),
+            'emails': None if pd.isna(row.get('emails')) else row.get('emails'),
+            'description': row.get('description'),
+            'date_pulled': datetime.now().isoformat(),
+            'searched_title': row.get('searched_title')
+        }
 
-                if result.data:
-                    print(f"Inserted job: {result.data}")
-                else:
-                    print(f"Error inserting job: {result.error}")
-                    continue;
+        try:
+            result = supabase.table('jobs').insert(new_job).execute()
+            if result.data:
+                print(f"Inserted job!")  # {result.data}")
+            else:
+                print(f"Error inserting job: {result.error}")
+        except Exception as e:
+            print(f"Error inserting job: {e}")
+            print(f"Error on job data: {new_job}")
+            return None
 
-                users_jobs_row = {
-                    'user_id': user_id,
-                    'job_id': result.data[0].get('id'),
-                    'desire_score': row.get('desire_score'),
-                    'experience_score': row.get('experience_score'),
-                    'meets_requirements_score': row.get('meets_requirements_score'),
-                    'meets_experience_score': row.get('meets_experience_score'),
-                    'score': row.get('job_score'),
-                    'guidance': row.get('guidance')
-                }
+        return result
 
-                association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
-                if association_result.data:
-                    logging.info("Inserted user job association!")  #: {association_result.data}")
-                else:
-                    logging.error(f"Error inserting user job association: {association_result.error}")
-            except Exception as e:
-                print(f"Error inserting job: {e}")
-                print(f"Error on job data: {new_job}")
-                print(f"Error on user-job data: {users_jobs_row}")
-                continue
+    def create_new_job_association(supabase, user_id, job_id, row):
+        users_jobs_row = {
+            'user_id': user_id,
+            'job_id': job_id,
+            'desire_score': row.get('desire_score'),
+            'experience_score': row.get('experience_score'),
+            'meets_requirements_score': row.get('meets_requirements_score'),
+            'meets_experience_score': row.get('meets_experience_score'),
+            'score': row.get('job_score'),
+            'guidance': row.get('guidance')
+        }
+        try:
+            association_result = supabase.table('users_jobs').insert(users_jobs_row).execute()
+            if association_result.data:
+                print(f"Inserted user job association!")  #: {association_result.data}")
+            else:
+                print(f"Error inserting user job: {association_result.error}")
+        except Exception as e:
+            print(f"Error inserting user job: {e}")
+            print(f"Error on user-job data: {users_jobs_row}")
+            return None
+
+        return association_result
 
     def convert_to_int(value):
         try:

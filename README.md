@@ -2,10 +2,10 @@
 
 ## Overview
 
-The Job Scraper is a Python-based application designed to automate the process of finding job listings from various
-online job boards including Indeed, ZipRecruiter, Glassdoor, and LinkedIn. It fetches job listings based on specified
-criteria, adds derived data such as skills or qualifications required, and saves the listings both as CSV files and as
-Markdown documents for easy viewing.
+This is a Python-based application that pulls job listings from various online job boards. It fetches job
+listings based on specified criteria, adds derived data such as skills or qualifications required, and saves
+the listings to Supabase. From there a [web frontend](https://github.com/davehague/job_scraper_web) can
+display the listings.
 
 *Built using Python 3.11.2*
 
@@ -36,16 +36,37 @@ pip install -r requirements.txt
 Create a `.env` file to store your LLM keys
 
 ```bash
-OPENAI_API_KEY=sk-your-key-here
 ANTHROPIC_API_KEY=sk-your-key-here
+GEMINI_API_KEY=AIz-your-key-here
+OPENAI_API_KEY=sk-your-key-here
 SUPABASE_URL=https://<project_url>.supabase.co
-SUPABASE_KEY=eyJhbGci...
+SUPABASE_KEY=eyJhb-your-key-here
+# Mailjet keys
+MJ_APIKEY_PUBLIC=dd2-your-key-here
+MJ_APIKEY_PRIVATE=e3e-your-key-here
 ```
+
+## Database
+
+Schemas, tables, and views are created in Supabase. You can view the DDL under `db_scripts`
 
 ## Configuration
 
-A number of config files can be found in the `mock_configs` directory. This makes it easier to swap out different
-testing scenarios.
+Configuration is controlled via database settings. The table is called `user_configs`. This is a sparsely
+populated table that can contain the following keys:
+
+| key                    | description                                                     |
+|------------------------|-----------------------------------------------------------------|
+| job_titles             | Comma-separated list of job titles to search for                |
+| skill_words            | Comma-separated list of skills to search for                    |
+| go_words               | Comma-separated list of words to search for in job descriptions |
+| is_remote              | Boolean indicating whether to search for remote jobs            |
+| distance               | Integer indicating the distance from the location to search     |
+| candidate_requirements | Comma-separated list of words to search for in job descriptions |
+| stop_words             | Comma-separated list of words to exclude from job titles        |
+| results_wanted         | Integer indicating the number of results to return              |
+| location               | String indicating the location to search                        |
+| candidate_min_salary   | Integer indicating the minimum salary to search for             |
 
 ## Dev Guidance
 
