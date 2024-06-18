@@ -377,7 +377,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                 - Hiring manager experience match: NN
                 - Final overall match assessment: NN
                 - Explanation of ratings: 
-                You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+                You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons in one sentence>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons, in one sentence>. Overall, I think <your overall thoughts about the match between the user and the job in one sentence>.
                 """
 
             ratings = query_llm(llm="gemini",

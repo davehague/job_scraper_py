@@ -81,7 +81,7 @@ def get_job_ratings(original_df, db_user, user_configs):
             - Hiring manager experience match: NN
             - Final overall match assessment: NN
             - Explanation of ratings: 
-            You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons>. Overall, I think <your overall thoughts about the match between the user and the job>.
+            You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons in one sentence>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons, in one sentence>. Overall, I think <your overall thoughts about the match between the user and the job in one sentence>.
             """
 
         ratings = query_llm(llm="gemini",
@@ -343,9 +343,9 @@ if __name__ == '__main__':
             time.sleep(15)
             continue
 
-        if len(cleaned_jobs) > 15:
-            print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 15.")
-            cleaned_jobs = cleaned_jobs.head(15)
+        if len(cleaned_jobs) > 10:
+            print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 10.")
+            cleaned_jobs = cleaned_jobs.head(10)
 
         jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, llm_job_titles, configs)
         sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
