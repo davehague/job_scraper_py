@@ -14,7 +14,7 @@ def send_email_updates():
 
     for user in users.data:
         send_emails = user['send_emails']
-        if current_time.hour < 17 and send_emails == 'daily':
+        if current_time.hour > 8 and send_emails == 'daily':
             continue
 
         user_id = user['id']
