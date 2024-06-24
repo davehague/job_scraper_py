@@ -10,7 +10,22 @@ SELECT
     uj.interested,
     uj.email_sent,
     uj.guidance,
-    j.*
+    j.id,
+    j.created_at,
+    j.title,
+    j.company,
+    j.short_summary,
+    j.hard_requirements,
+    j.job_site,
+    j.url,
+    j.location,
+    j.date_posted,
+    j.comp_interval,
+    j.comp_min,
+    j.comp_max,
+    j.comp_currency,
+    j.emails,
+    j.date_pulled
 FROM
     jobscraper.users_jobs uj
 JOIN

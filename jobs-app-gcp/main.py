@@ -33,26 +33,6 @@ def jobs_app_function(context):
         jobs_app_scheduled(context.get_json(), context.context)
         return 'Scheduled job executed successfully', 200
 
-    def find_best_job_titles(resume):
-
-        resume = consolidate_text(resume)
-        full_message = "In the <resume> tag below is a candidate resume:"
-        full_message += "\n<resume>\n" + resume + "\n</resume>\n"
-        full_message += """
-You are an expert in searching job postings. You take all the information 
-given to you and come up with a list of 3 most relevant job titles. Only list the 
-titles in a comma-separated list, no other information is needed.  
-IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.
-"""
-
-        titles = query_llm(llm="anthropic",
-                           model_name="claude-3-opus-20240229",
-                           system="You are a helpful no-nonsense assistant.  You listen to directions carefully and follow them to the letter.",
-                           messages=[{"role": "user", "content": full_message}])
-
-        titles = [title.strip() for title in titles.split(",")] if titles else []
-        return titles
-
     def query_llm(llm, model_name, system, messages=[]):
         max_retries = 3
         wait_time = 3
@@ -262,7 +242,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     #     return df.iloc[indices_to_keep]
 
-    def get_jobs_with_derived(jobs_df, resume):
+    def get_jobs_with_derived(jobs_df, user_info):
         derived_data_questions = [('short_summary',
                                    'Provide a short summary of the job.  If the job is fully remote, start with'
                                    ' the sentence "Fully remote! ", otherwise skip this step.  Then, after a'
@@ -282,12 +262,12 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
                                    ' each')
                                   ]
 
-        rated_jobs = get_job_ratings(jobs_df, resume)
-        todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume)
+        rated_jobs = get_job_ratings(jobs_df, user_info)
+        todays_jobs = add_derived_data(rated_jobs, derived_data_questions, user_provided_info=user_info)
 
         return todays_jobs
 
-    def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
+    def add_derived_data(jobs_df, derived_data_questions=[], user_provided_info=None):
         if len(derived_data_questions) == 0:
             return jobs_df
 
@@ -305,7 +285,7 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
             logging.info(f"{index}: Processing: {row['title']} at {row['company']}")
 
             for column_name, question in derived_data_questions:
-                full_message = build_context_for_llm(job_description, resume, question)
+                full_message = build_context_for_llm(job_description, user_provided_info, question)
                 full_message = consolidate_text(full_message)
 
                 answer = query_llm(llm='openai', model_name='gpt-3.5-turbo',
@@ -318,31 +298,31 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
         jobs_df_updated = pd.concat([derived_data, jobs_df], axis=1)
         return jobs_df_updated
 
-    def build_context_for_llm(job_description, resume, question):
+    def build_context_for_llm(job_description, user_provided_info, question):
         full_message = ""
-        if resume is not None:
-            full_message += "Here is the candidate's resume: <resume>" + resume + "</resume> "
+        if user_provided_info is not None:
+            full_message += "Here is the candidate's information: <user_provided_info>" + user_provided_info + "</user_provided_info> "
         if job_description:
             full_message += "Here is some information about a job. <job>" + job_description + "</job> "
         full_message += "Now for my question: " + question + " "
         return full_message
 
-    def get_job_ratings(original_df, resume):
+    def get_job_ratings(original_df, user_provided_info):
         jobs_df = original_df.copy()
         logging.info(f'Getting job ratings for {len(jobs_df)} jobs...')
 
-        resume = consolidate_text(resume)
+        user_info = consolidate_text(user_provided_info)
 
         for index, row in jobs_df.iterrows():
             job_title = row['title']
             job_description = row['description']
             job_description = consolidate_text(job_description)
 
-            full_message = f"<resume>{resume}</resume>\n" + \
+            full_message = f"<user_info>{user_info}</user_info>\n" + \
                            f"<job_title>{job_title}</job_title>\n" + \
                            f"<job_description>{job_description}</job_description>\n" + \
                            """
-                           Given the user resume (resume tag), job title (job_title tag) and job description 
+                           Given the user provided information (user_info tag), job title (job_title tag) and job description 
                            (job_description tag), make the following ratings:
                            
                            1) How the candidate would rate this job on a scale from 1 to 100 in terms of how well it 
@@ -571,14 +551,23 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     data = context.get_json()
 
-    resume = data.get('resume')
+    user_provided_info = data.get('resume')
     user_id = data.get('user_id')
 
-    llm_job_titles = find_best_job_titles(resume)
+    # Find the data withing user_provided_info that's between <desired_job_titles> and </desired_job_titles>
+    job_titles_csv = re.findall(r'<desired_job_titles>(.*?)</desired_job_titles>', user_provided_info, re.DOTALL)
+    job_titles = [title.strip() for title in job_titles_csv[0].split(',')] if job_titles_csv else []
+
+    if not job_titles:
+        logging.info("No job titles found within user info")
+        return Response(response="No job titles found within user info", status=200)
+    else:
+        logging.info(f"Job titles found within user info: {job_titles}")
+
     all_jobs = []
     job_sites = ['indeed', 'glassdoor', 'zip_recruiter', 'linkedin']
     for job_site in job_sites:
-        all_jobs = get_jobs_for_user(job_site, user_id, llm_job_titles)
+        all_jobs = get_jobs_for_user(job_site, user_id, job_titles)
         if len(all_jobs) > 0:
             break
 
@@ -589,15 +578,16 @@ IMPORTANT: ONLY INCLUDE THE JOB TITLES IN A COMMA SEPARATED LIST.  DO NOT INCLUD
 
     # Just keep the top 10 jobs
     cleaned_jobs_subset = cleaned_jobs.head(10)
+    # have a second df for the second 10 jobs
+    cleaned_jobs_second = cleaned_jobs[~cleaned_jobs['job_url'].isin(cleaned_jobs_subset['job_url'])].head(10)
 
-    jobs_with_derived = get_jobs_with_derived(cleaned_jobs_subset, resume)
+    jobs_with_derived = get_jobs_with_derived(cleaned_jobs_subset, user_provided_info)
     save_jobs_to_supabase(user_id, jobs_with_derived)
 
     # If jobs_with_derived doesn't have a job over 80, get the next 10 jobs
     if len(jobs_with_derived[jobs_with_derived['job_score'].astype(float) > 80]) == 0:
         logging.info("No jobs over 80 found, getting the next 10 jobs...")
-        cleaned_jobs_second = cleaned_jobs[~cleaned_jobs['job_url'].isin(jobs_with_derived['job_url'])].head(10)
-        jobs_with_derived_second = get_jobs_with_derived(cleaned_jobs_second, resume)
+        jobs_with_derived_second = get_jobs_with_derived(cleaned_jobs_second, user_provided_info)
         save_jobs_to_supabase(user_id, jobs_with_derived_second)
 
     return Response(response="Jobs pulled, cleaned, and saved to Supabase", status=200)
