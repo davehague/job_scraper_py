@@ -242,15 +242,16 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claud
     derived_data = pd.DataFrame(index=jobs_df.index)
 
     for index, row in jobs_df.iterrows():
-        job_description = f"Title: {row['title']}\nCompany: {row['company']}\nLocation: {row['location']}\n" \
-                          f"Description: {row['description']}\n"
+        job_description = f"Title: {row.get('title', 'N/A')}\nCompany: {row.get('company', 'N/A')}\nLocation: {row.get('location', 'N/A')}\n" \
+                          f"Description: {row.get('description', 'N/A')}\n"
 
-        pay_info = (f"Pays between {row['min_amount']} and {row['max_amount']} on a(n) {row['interval']}'"
-                    f" basis.") if len(row['interval']) > 0 else ""
+        pay_info = (
+            f"Pays between {row.get('min_amount', 'N/A')} and {row.get('max_amount', 'N/A')} on a(n) {row.get('interval', 'N/A')}'"
+            f" basis.") if row.get('interval', '') else ""
 
         job_description += pay_info
 
-        print(f"{index}: Processing: {row['title']} at {row['company']}")
+        print(f"{index}: Processing: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}")
 
         for column_name, question in derived_data_questions:
             if llm == "chatgpt":

@@ -23,13 +23,13 @@ def write_jobs_to_downloads(folder_name, jobs_df):
     # Iterate over each row in the dataframe
     for index, row in jobs_df.iterrows():
         # Create a markdown formatted string
-        markdown_text = f"# {row['title']}\n\n"
+        markdown_text = f"# {row.get('title', 'N/A')}\n\n"
         for column in jobs_df.columns:
             if column != 'title':
                 markdown_text += f"**{column}**\n{row[column]}\n\n"
 
         # Save the markdown formatted string to a file
-        filename = f"{clean_filename(row['title'])}-{clean_filename(row['company'])}-{row['location']}.md"
+        filename = f"{clean_filename(row.get('title', 'N/A'))}-{clean_filename(row.get('company'), 'N/A')}-{row.get('location', 'N/A')}.md"
         file_path = os.path.join(folder_path, filename)
         print(f"Writing file: {file_path}")  # Print the filename
         try:

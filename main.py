@@ -35,8 +35,8 @@ def get_job_ratings(original_df, db_user, user_configs):
     resume = consolidate_text(db_resume)
 
     for index, row in jobs_df.iterrows():
-        job_title = row['title']
-        job_description = row['description']
+        job_title = row.get('title', "N/A")
+        job_description = row.get('description', "N/A")
         job_description = consolidate_text(job_description)
 
         full_message = f"<job_titles>{', '.join(job_titles)}</job_titles>\n" + \
@@ -135,13 +135,15 @@ def get_job_ratings(original_df, db_user, user_configs):
             overall_job_score_split = ratings[4].split(":")
             if len(overall_job_score_split) == 2:
                 overall_job_score = overall_job_score_split[1].strip()
-                print(f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
+                print(
+                    f"{index}: Adding a rating to: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}: {overall_job_score}")
                 jobs_df.at[index, 'job_score'] = overall_job_score
             else:
                 print("Error: Unable to split overall job score.")
 
             if len(guidance) > 0:
-                print(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
+                print(
+                    f"{index}: Adding guidance to: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}: {guidance}")
                 jobs_df.at[index, 'guidance'] = guidance
         else:
             print("Error: Ratings list does not have enough elements.")

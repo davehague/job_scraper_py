@@ -133,9 +133,9 @@ def save_jobs_to_supabase(user_id, df):
         if job_score < 50:
             continue
 
-        job_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
+        job_exists = supabase.table('jobs').select('id').eq('url', row.get('job_url', 'N/A')).execute()
         if not job_exists.data:
-            print(f"Job with URL {row['job_url']} does not exist, creating new job...")
+            print(f"Job with URL {row.get('job_url', 'N/A')} does not exist, creating new job...")
             result = create_new_job(supabase, row)
             job_id = result.data[0].get('id')
             if not result.data:
@@ -147,11 +147,11 @@ def save_jobs_to_supabase(user_id, df):
         user_has_recommendation = (supabase.table('recent_high_score_jobs')
                                    .select('id')
                                    .eq('user_id', user_id)
-                                   .eq('url', row['job_url'])
+                                   .eq('url', row.get('job_url', ''))
                                    .execute())
 
         if user_has_recommendation.data:
-            print(f"Job with URL {row['job_url']} already exists for user {user_id}, skipping...")
+            print(f"Job with URL {row.get('job_url', 'N/A')} already exists for user {user_id}, skipping...")
             continue
 
         create_new_job_association(supabase, user_id, job_id, row)

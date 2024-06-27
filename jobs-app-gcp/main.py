@@ -275,14 +275,15 @@ def jobs_app_function(context):
         derived_data = pd.DataFrame(index=jobs_df.index)
 
         for index, row in jobs_df.iterrows():
-            job_description = f"Title: {row['title']}\nCompany: {row['company']}\nLocation: {row['location']}\n" \
-                              f"Description: {row['description']}\n"
+            job_description = f"Title: {row.get('title', 'N/A')}\nCompany: {row.get('company', 'N/A')}\nLocation: {row.get('location', 'N/A')}\n" \
+                              f"Description: {row.get('description', 'N/A')}\n"
 
-            pay_info = (f"Pays between {row['min_amount']} and {row['max_amount']} on a(n) {row['interval']}'"
-                        f" basis.") if len(row['interval']) > 0 else ""
+            pay_info = (
+                f"Pays between {row.get('min_amount', 'N/A')} and {row.get('max_amount', 'N/A')} on a(n) {row.get('interval', 'N/A')}'"
+                f" basis.") if row.get('interval', '') else ""
 
             job_description += pay_info
-            logging.info(f"{index}: Processing: {row['title']} at {row['company']}")
+            logging.info(f"{index}: Processing: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}")
 
             for column_name, question in derived_data_questions:
                 full_message = build_context_for_llm(job_description, user_provided_info, question)
@@ -314,8 +315,8 @@ def jobs_app_function(context):
         user_info = consolidate_text(user_provided_info)
 
         for index, row in jobs_df.iterrows():
-            job_title = row['title']
-            job_description = row['description']
+            job_title = row.get('title', 'N/A')
+            job_description = row.get('description', 'N/A')
             job_description = consolidate_text(job_description)
 
             full_message = f"<user_info>{user_info}</user_info>\n" + \
@@ -411,13 +412,14 @@ def jobs_app_function(context):
                 if len(overall_job_score_split) == 2:
                     overall_job_score = overall_job_score_split[1].strip()
                     logging.info(
-                        f"{index}: Adding a rating to: {row['title']} at {row['company']}: {overall_job_score}")
+                        f"{index}: Adding a rating to: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}: {overall_job_score}")
                     jobs_df.at[index, 'job_score'] = overall_job_score
                 else:
                     logging.error("Error: Unable to split overall job score.")
 
                 if len(guidance) > 0:
-                    logging.info(f"{index}: Adding guidance to: {row['title']} at {row['company']}: {guidance}")
+                    logging.info(
+                        f"{index}: Adding guidance to: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}: {guidance}")
                     jobs_df.at[index, 'guidance'] = guidance
             else:
                 logging.error("Error: Ratings list does not have enough elements.")
@@ -451,9 +453,9 @@ def jobs_app_function(context):
             if job_score < 50:
                 continue
 
-            job_exists = supabase.table('jobs').select('id').eq('url', row['job_url']).execute()
+            job_exists = supabase.table('jobs').select('id').eq('url', row.get('job_url', '')).execute()
             if not job_exists.data:
-                logging.info(f"Job with URL {row['job_url']} does not exist, creating new job...")
+                logging.info(f"Job with URL {row.get('job_url', 'N/A')} does not exist, creating new job...")
                 result = create_new_job(supabase, row)
                 job_id = result.data[0].get('id')
                 if not result.data:
@@ -465,11 +467,11 @@ def jobs_app_function(context):
             user_has_recommendation = (supabase.table('recent_high_score_jobs')
                                        .select('id')
                                        .eq('user_id', user_id)
-                                       .eq('url', row['job_url'])
+                                       .eq('url', row.get('job_url', ''))
                                        .execute())
 
             if user_has_recommendation.data:
-                logging.info(f"Job with URL {row['job_url']} already exists for user {user_id}, skipping...")
+                logging.info(f"Job with URL {row.get('job_url', 'N/A')} already exists for user {user_id}, skipping...")
                 continue
 
             create_new_job_association(supabase, user_id, job_id, row)
