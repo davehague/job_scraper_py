@@ -40,6 +40,7 @@ ANTHROPIC_API_KEY=sk-your-key-here
 GEMINI_API_KEY=AIz-your-key-here
 OPENAI_API_KEY=sk-your-key-here
 SUPABASE_URL=https://<project_url>.supabase.co
+# Supabase Service Account (will bypass RLS)
 SUPABASE_KEY=eyJhb-your-key-here
 # Mailjet keys
 MJ_APIKEY_PUBLIC=dd2-your-key-here
