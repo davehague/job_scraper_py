@@ -13,7 +13,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE POLICY user_access_policy ON jobscraper.users
 FOR ALL
 USING (
-  auth.uid() = id OR jobscraper.is_admin()
+  auth.uid() = id OR jobscraper.is_admin() or is_public = true
 );
 
 CREATE POLICY user_update_policy ON jobscraper.users
