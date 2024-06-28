@@ -47,6 +47,18 @@ MJ_APIKEY_PUBLIC=dd2-your-key-here
 MJ_APIKEY_PRIVATE=e3e-your-key-here
 ```
 
+In the `jobs-app-gcp` folder there should also be an `.env.yaml` file, which is used by the Google Cloud Functions
+
+```bash
+OPENAI_API_KEY: sk...
+ANTHROPIC_API_KEY: sk...
+GEMINI_API_KEY: AIz...
+SUPABASE_URL: https://<project_url>.supabase.co
+# SERVICE ACCOUNT KEY
+SUPABASE_KEY: eyJ...
+GOOGLE_CLOUD_FUNCTION_API_KEY: AIz...
+```
+
 ## Database
 
 Schemas, tables, and views are created in Supabase. You can view the DDL under `db_scripts`

@@ -17,7 +17,7 @@ from jobspy import scrape_jobs  # python-jobspy package
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
 
-from flask import Response
+from flask import Response, abort
 import google.cloud.logging
 import logging
 
@@ -29,6 +29,12 @@ def jobs_app_scheduled(event, context):
 
 
 def jobs_app_function(context):
+    api_key = context.headers.get('X-API-Key')
+    expected_api_key = os.environ.get('GOOGLE_CLOUD_FUNCTION_API_KEY')
+
+    if api_key != expected_api_key:
+        return abort(403, description="Invalid Google Functions API Key")
+
     if context.method == 'POST' and 'X-CloudScheduler' in context.headers:
         jobs_app_scheduled(context.get_json(), context.context)
         return 'Scheduled job executed successfully', 200
