@@ -9,7 +9,8 @@ import logging
 from pathlib import Path
 import sys
 
-from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users, get_recent_job_urls, \
+from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users_with_resume_and_login_last_30_days, \
+    get_recent_job_urls, \
     save_titles_for_user
 from llm import query_llm
 from send_emails import send_email_updates
@@ -318,8 +319,8 @@ if __name__ == '__main__':
         sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
-    public_users = get_users()
-    for user in public_users:
+    eligible_users = get_users_with_resume_and_login_last_30_days()
+    for user in eligible_users:
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
 

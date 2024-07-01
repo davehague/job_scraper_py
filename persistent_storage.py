@@ -68,12 +68,13 @@ def get_user_configs(user_id):
         return {}
 
 
-def get_users():
+def get_users_with_resume_and_login_last_30_days():
     supabase = get_supabase_client()
     response = (supabase.table('users')
                 .select('*')
                 .neq('resume', None)
                 .neq('resume', '')
+                .gte('last_login', (datetime.now() - timedelta(days=30)).isoformat())
                 .execute())
 
     if response.data:
