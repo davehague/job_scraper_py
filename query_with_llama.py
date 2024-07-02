@@ -7,11 +7,8 @@ from llama_index.core import (
 from file_utils import get_downloads_folder
 import os
 from dotenv import load_dotenv
-import openai
 from llama_index.llms.anthropic import Anthropic
 from llama_index.core import Settings
-
-
 
 
 def query_data(query):
@@ -39,6 +36,6 @@ def query_data(query):
         storage_context = StorageContext.from_defaults(persist_dir=PERSIST_DIR)
         index = load_index_from_storage(storage_context)
 
-    query_engine = index.as_query_engine(similarity_top_k=5) # default is top 2
+    query_engine = index.as_query_engine(similarity_top_k=5)  # default is top 2
     response = query_engine.query(query)
     print(response)

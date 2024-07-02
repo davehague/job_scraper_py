@@ -1,8 +1,7 @@
 import csv
 
-from file_utils import read_df_from_downloads, get_downloads_folder
+from file_utils import get_downloads_folder
 import os
-import pandas as pd
 
 
 def clean_filename(filename):

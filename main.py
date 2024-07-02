@@ -1,7 +1,6 @@
 import os
 import time
 import re
-from file_utils import save_df_to_downloads_xlsx
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 
 # Logging
@@ -290,7 +289,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     return todays_jobs
 
 
-SCHEDULED = False
+SCHEDULED = True
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -355,6 +354,5 @@ if __name__ == '__main__':
 
         # Save to supabase
         save_jobs_to_supabase(user_id, sorted_jobs)
-        save_df_to_downloads_xlsx(reorder_columns(sorted_jobs), "compiled_jobs")
 
     send_email_updates()

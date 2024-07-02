@@ -1,8 +1,6 @@
 import os
 import time
-from file_utils import save_df_to_downloads
 from dotenv import load_dotenv
-from requests.exceptions import HTTPError
 
 from jobspy import scrape_jobs  # python-jobspy package
 import pandas as pd
@@ -29,8 +27,6 @@ def scrape_job_data(user_id, job_titles, job_sites, location, distance, results_
         if not job_df.empty:
             all_jobs = pd.concat([all_jobs, job_df], ignore_index=True)
 
-    print('Job scraping completed, saving temporary file (scraped_jobs)...')
-    save_df_to_downloads(all_jobs, "scraped_jobs")
     return all_jobs
 
 
@@ -237,8 +233,6 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claud
         return jobs_df
 
     print("Generating derived data...")
-    save_df_to_downloads(jobs_df, "compiled_jobs_no_derived")  # in case deriving fails
-
     derived_data = pd.DataFrame(index=jobs_df.index)
 
     for index, row in jobs_df.iterrows():
