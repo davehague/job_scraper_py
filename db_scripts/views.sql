@@ -8,6 +8,7 @@ SELECT
     uj.meets_requirements_score,
     uj.meets_experience_score,
     uj.interested,
+    uj.has_applied,
     uj.email_sent,
     uj.guidance,
     j.id,
