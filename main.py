@@ -326,7 +326,7 @@ if __name__ == '__main__':
         # if not user.get('is_public'):
         #     continue
 
-        # if user_id != '6ad24019-8c95-4dda-bf6d-7f2c57ab9915':
+        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
         #     continue
 
         if len(user.get('resume')) < 100:

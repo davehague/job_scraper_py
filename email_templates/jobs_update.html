@@ -61,14 +61,20 @@
               .score-circle .score-text {
                 color: white;
               }
+                .note {
+                    font-size: 12px;
+                    font-style: italic;
+                }
     </style>
 </head>
 <body>
 <p>
     Hi {{ user_name }}! Good news, we scoured the internet and found new
     jobs that we think you'll love and would be good matches for you. Check out the top jobs
-    below or click <a href="https://jobs.davehague.com/">here</a> to see ALL your results!
+    below or click <a href="https://jobs.timetovalue.org/home">here</a> to see ALL your results!
 </p>
+<p class="note">Note that we are now hosted on a new domain (https://www.timetovalue.org), so please update your
+    bookmarks.</p>
 {% for job in jobs %}
 <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
@@ -78,15 +84,18 @@
             </div>
         </td>
         <td class="right">
-            <h2 class="title">{{ job.title }}</h2>
+            <a href="https://jobs.timetovalue.org/job/{{job.id}}">
+                <h2 class="title">{{ job.title }}</h2>
+            </a>
             <h3 class="secondary-title">{{ job.company }} - {{ job.location }}</h3>
             <h3 class="secondary-title">{{ job.salary }}</h3>
             <p class="summary">{{ job.summary }}</p>
+
         </td>
     </tr>
 </table>
 {% endfor %}
 <p>{% if total_job_count > 3 %}...and {{ total_job_count - 3 }} more!{% endif %}. Click <a
-        href="https://jobs.davehague.com/">here</a> to log in for more details and for full results.</p>
+        href="https://jobs.timetovalue.org/home">here</a> to log in for more details and for full results.</p>
 </body>
 </html>

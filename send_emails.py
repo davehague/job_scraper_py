@@ -46,6 +46,7 @@ def send_email_updates():
 
             guidance = job['guidance']
             email_jobs_data.append({
+                'id': job['id'],
                 'score': score,
                 'score_color': score_color,
                 'title': title,
@@ -87,7 +88,7 @@ def send_email(user_email, user_name, jobs, total_job_count):
                     }
                 ],
                 "Subject": "New jobs are in from the jobs app!",
-                "TextPart": "New jobs are in from the jobs app! Check them out at https://jobs.davehague.com/",
+                "TextPart": "New jobs are in from the jobs app! Check them out at https://jobs.timetovalue.com/",
                 "HTMLPart": rendered_html
             }
         ]
