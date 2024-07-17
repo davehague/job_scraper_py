@@ -1,6 +1,11 @@
 import os
 import time
 import re
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 
 # Logging
@@ -10,7 +15,7 @@ import sys
 
 from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users_with_resume_and_login_last_30_days, \
     get_recent_job_urls, \
-    save_titles_for_user
+    save_titles_for_user, get_recent_jobs, add_association_if_not_exists, get_user_by_id, get_job_by_id
 from llm import query_llm
 from send_emails import send_email_updates
 
@@ -289,7 +294,57 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     return todays_jobs
 
 
-SCHEDULED = True
+def find_titles_by_similarity(target_title, job_list, similarity_threshold=0.9):
+    # Extract job titles from job_list
+    job_ids, job_titles = zip(*job_list)
+
+    # Combine target_title with job_titles
+    all_titles = [target_title] + list(job_titles)
+
+    # Use TF-IDF to vectorize the titles
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(all_titles)
+
+    # Compute cosine similarity
+    cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:])
+
+    # Find indices where similarity is above the threshold
+    similar_indices = np.where(cosine_sim[0] >= similarity_threshold)[0]
+
+    # Create list of matching jobs
+    matching_jobs = [
+        (job_ids[i], job_titles[i], cosine_sim[0][i])
+        for i in similar_indices
+    ]
+
+    # Sort matching jobs by similarity in descending order
+    matching_jobs.sort(key=lambda x: x[2], reverse=True)
+
+    return matching_jobs
+
+
+def find_existing_jobs_for_users(users):
+    # Get all recent job and their title (id, title)
+    recent_jobs = get_recent_jobs(days_old=1)
+
+    for user in users:
+        # Get the users job titles
+        user_id = user.get('id')
+        configs = get_user_configs(user_id)
+        db_job_titles = [config['string_value'] for config in configs if config['key'] == 'job_titles']
+        user_titles = db_job_titles or []
+
+        matched_jobs = []
+        for title in user_titles:
+            # Find jobs that are 70% similar by title
+            matching_jobs = find_titles_by_similarity(title, recent_jobs, similarity_threshold=0.7)
+            for job in matching_jobs:
+                add_association_if_not_exists(user_id, job[0])
+
+    return matched_jobs
+
+
+SCHEDULED = False
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -319,6 +374,7 @@ if __name__ == '__main__':
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
     eligible_users = get_users_with_resume_and_login_last_30_days()
+
     for user in eligible_users:
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
@@ -355,4 +411,5 @@ if __name__ == '__main__':
         # Save to supabase
         save_jobs_to_supabase(user_id, sorted_jobs)
 
+    find_existing_jobs_for_users(eligible_users)
     send_email_updates()
