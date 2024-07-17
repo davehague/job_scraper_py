@@ -240,6 +240,7 @@ def create_new_job(supabase, row):
     return result
 
 
+# TODO break out all of the logic from the DB part
 def add_association_if_not_exists(user_id, job_id):
     supabase = get_supabase_client()
     user_has_recommendation = (supabase.table('users_jobs')
@@ -252,19 +253,20 @@ def add_association_if_not_exists(user_id, job_id):
         print(f"Job with URL {job_id} already exists for user {user_id}, skipping...")
         return None
 
-    if not job_meets_salary_requirements(user_id, job_id):
-        print(f"Job with URL {job_id} does not meet salary requirements for user {user_id}, skipping...")
-        return None
-
-    if job_matches_stop_words(user_id, job_id):
-        print(f"Job with URL {job_id} matches stop words for user {user_id}, skipping...")
-        return None
-
     user = get_user_by_id(user_id)
     user_configs = get_user_configs(user_id)
     job = get_job_by_id(job_id)
+
+    if not job_meets_salary_requirements(user, job):
+        print(f"Job with URL {job_id} does not meet salary requirements for user {user_id}, skipping...")
+        return None
+
+    if job_matches_stop_words(user_configs, job):
+        print(f"Job with URL {job_id} matches stop words for user {user_id}, skipping...")
+        return None
+
     ratings = get_job_guidance_for_user(user, user_configs, job)
-    
+
     if int(ratings.get('overall_score', 0)) < 70:
         print(f"Job with URL {job_id} has a score less than 70, skipping...")
     else:

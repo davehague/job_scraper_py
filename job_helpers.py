@@ -2,12 +2,27 @@ from llm import query_llm
 from helpers import consolidate_text
 
 
-def job_matches_stop_words(user_id, job_id):
-    print("job_matches_stop_words")
+def job_matches_stop_words(user_configs, job):
+    db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
+    job_title = job.get('title')
+    job_description = job.get('description')
+
+    stop_words = db_stop_words or []
+
+    job_title = consolidate_text(job_title)
+    job_description = consolidate_text(job_description)
+
+    for stop_word in stop_words:
+        if stop_word in job_title or stop_word in job_description:
+            return True
+
+    return False
 
 
-def job_meets_salary_requirements(user_id, job_id):
-    print("job_meets_salary_requirements")
+def job_meets_salary_requirements(user, job):
+    candidate_min_salary = user.get('min_salary')
+    job_max_salary = job.get('max_amount') or 0
+    return job_max_salary >= candidate_min_salary
 
 
 def get_job_guidance_for_user(db_user, user_configs, job):

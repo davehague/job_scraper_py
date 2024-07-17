@@ -296,7 +296,7 @@ def find_existing_jobs_for_users(users):
     return matched_jobs
 
 
-SCHEDULED = False
+SCHEDULED = True
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -334,8 +334,8 @@ if __name__ == '__main__':
         # if not user.get('is_public'):
         #     continue
 
-        if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
-            continue
+        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
+        #     continue
 
         if len(user.get('resume')) < 100:
             print("Resume is too short, skipping.")
