@@ -1,12 +1,13 @@
 import os
 import time
-import re
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
+from job_helpers import find_best_job_titles_for_user
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
+from helpers import consolidate_text
 
 # Logging
 import logging
@@ -18,12 +19,6 @@ from persistent_storage import save_jobs_to_supabase, get_user_configs, get_user
     save_titles_for_user, get_recent_jobs, add_association_if_not_exists, get_user_by_id, get_job_by_id
 from llm import query_llm
 from send_emails import send_email_updates
-
-
-def consolidate_text(text):
-    consolidated = text.replace('\r', ' ').replace('\n', ' ')
-    consolidated = re.sub(' +', ' ', consolidated)
-    return consolidated
 
 
 def get_job_ratings(original_df, db_user, user_configs):
@@ -159,50 +154,6 @@ def get_job_ratings(original_df, db_user, user_configs):
     return jobs_over_50
 
 
-def find_best_job_titles(db_user, user_configs):
-    db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
-    db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
-    db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
-    db_resume = db_user.get('resume')
-
-    job_titles = db_job_titles or []
-    skill_words = db_skill_words or []
-
-    full_message = "Below is information that the candidate has provided.\n"
-    full_message += "Provided Job Titles: " + ", ".join(job_titles) + "\n"
-    full_message += "Desired verbiage in job description: " + ", ".join(skill_words) + "\n"
-
-    if db_stop_words and len(db_stop_words) > 0:
-        full_message += ("Candidate does not want jobs that have titles with these words: " +
-                         ", ".join(db_stop_words) + "\n")
-
-    if db_resume is not None:
-        db_resume = consolidate_text(db_resume)
-        full_message += "In the <resume> tag below is the candidate resume, give extra weight to this information."
-        full_message += "\n<resume>\n" + db_resume + "\n</resume>\n"
-
-    if not db_job_titles:
-        print("No job titles found in the database, using LLM to find job titles.")
-        titles = query_llm(llm="anthropic",
-                           model_name="claude-3-opus-20240229",
-                           system="You are an expert in searching job listings. You take all the information"
-                                  " given to you and come up with a list of 3 most relevant job titles. You do not"
-                                  " have to use the job titles provided by the candidate, but take them into"
-                                  " consideration.  Only list the titles in a comma-separated list, "
-                                  " no other information is needed.  IMPORTANT: ONLY INCLUDE THE JOB TITLES IN "
-                                  " A COMMA SEPARATED LIST.  DO NOT INCLUDE ANY OTHER INFORMATION.",
-                           messages=[{"role": "user", "content": full_message}])
-        if titles is None:  # Fall back if LLM failed
-            titles = []
-        else:
-            titles = [title.strip() for title in titles.split(",")] if titles else []
-            save_titles_for_user(db_user.get('id'), titles)
-    else:
-        titles = db_job_titles
-
-    return titles
-
-
 def get_jobs_for_user(db_user, job_titles):
     print(f"Searching for job titles: {','.join(job_titles)}")
 
@@ -266,6 +217,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     db_resume = db_user.get('resume')
     resume = db_resume
 
+    # TODO : we're not using the skill words
     db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
     skill_words = db_skill_words or []
 
@@ -382,16 +334,18 @@ if __name__ == '__main__':
         # if not user.get('is_public'):
         #     continue
 
-        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
-        #     continue
+        if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
+            continue
 
         if len(user.get('resume')) < 100:
             print("Resume is too short, skipping.")
             continue
 
         configs = get_user_configs(user_id)
+        llm_job_titles = find_best_job_titles_for_user(user, configs)
+        if len(llm_job_titles) > 0:
+            save_titles_for_user(user_id, llm_job_titles)
 
-        llm_job_titles = find_best_job_titles(user, configs)
         all_jobs = get_jobs_for_user(user, llm_job_titles)
 
         cleaned_jobs = clean_up_jobs(all_jobs, configs)
