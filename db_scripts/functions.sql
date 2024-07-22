@@ -1,5 +1,5 @@
 --DROP FUNCTION get_active_users_with_resume()
-CREATE OR REPLACE FUNCTION get_active_users_with_resume()
+CREATE OR REPLACE FUNCTION jobscraper.get_active_users_with_resume()
 RETURNS SETOF jobscraper.users as $$
 BEGIN
     RETURN QUERY
@@ -13,5 +13,5 @@ $$ LANGUAGE plpgsql;
 
 --select count(string_value) from (
 --select distinct string_value from jobscraper.user_configs where key = 'job_titles'
---and user_id in (SELECT id FROM get_active_users_with_resume())
+--and user_id in (SELECT id FROM jobscraper.get_active_users_with_resume())
 --) as unique_titles

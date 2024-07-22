@@ -98,25 +98,9 @@ def get_user_configs(user_id):
 
 def get_active_users_with_resume():
     supabase = get_supabase_client()
-    # TODO: Call the function get_active_users_with_resume instead
-    # response = supabase.rpc('get_active_users_with_resume').execute()
-    #
-    # # Check the response
-    # if response.status_code == 200:
-    #     users = response.data
-    #     for user in users:
-    #         print(user)
-    # else:
-    #     print(f"Error: {response.status_code}")
-    #     print(response)
+    response = supabase.rpc('get_active_users_with_resume').execute()
 
-    response = (supabase.table('users')
-                .select('*')
-                .neq('resume', None)
-                .neq('resume', '')
-                .gte('last_login', (datetime.now() - timedelta(days=30)).isoformat())
-                .execute())
-
+    # Check the response
     if response.data:
         return response.data
     else:
