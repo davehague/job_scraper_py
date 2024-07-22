@@ -6,9 +6,6 @@ from supabase.lib.client_options import ClientOptions
 import pandas as pd
 from datetime import datetime, timedelta
 
-from job_helpers import (get_job_guidance_for_user, job_matches_stop_words,
-                         job_meets_salary_requirements)
-
 
 def convert_to_int(value):
     try:
@@ -99,8 +96,20 @@ def get_user_configs(user_id):
         return {}
 
 
-def get_users_with_resume_and_login_last_30_days():
+def get_active_users_with_resume():
     supabase = get_supabase_client()
+    # TODO: Call the function get_active_users_with_resume instead
+    # response = supabase.rpc('get_active_users_with_resume').execute()
+    #
+    # # Check the response
+    # if response.status_code == 200:
+    #     users = response.data
+    #     for user in users:
+    #         print(user)
+    # else:
+    #     print(f"Error: {response.status_code}")
+    #     print(response)
+
     response = (supabase.table('users')
                 .select('*')
                 .neq('resume', None)
@@ -240,39 +249,22 @@ def create_new_job(supabase, row):
     return result
 
 
-# TODO break out all of the logic from the DB part
-def add_association_if_not_exists(user_id, job_id):
+def user_has_recommendation(user_id, job_id):
     supabase = get_supabase_client()
-    user_has_recommendation = (supabase.table('users_jobs')
-                               .select('*')
-                               .eq('user_id', user_id)
-                               .eq('job_id', job_id)
-                               .execute())
+    has_rec = (supabase.table('users_jobs')
+               .select('*')
+               .eq('user_id', user_id)
+               .eq('job_id', job_id)
+               .execute())
 
-    if user_has_recommendation.data:
-        print(f"Job with URL {job_id} already exists for user {user_id}, skipping...")
-        return None
-
-    user = get_user_by_id(user_id)
-    user_configs = get_user_configs(user_id)
-    job = get_job_by_id(job_id)
-
-    if not job_meets_salary_requirements(user, job):
-        print(f"Job with URL {job_id} does not meet salary requirements for user {user_id}, skipping...")
-        return None
-
-    if job_matches_stop_words(user_configs, job):
-        print(f"Job with URL {job_id} matches stop words for user {user_id}, skipping...")
-        return None
-
-    ratings = get_job_guidance_for_user(user, user_configs, job)
-
-    if int(ratings.get('overall_score', 0)) < 70:
-        print(f"Job with URL {job_id} has a score less than 70, skipping...")
+    if has_rec.data:
+        return True
     else:
-        print(
-            f"Job with URL {job_id} has a score of {ratings.get('overall_score')}, adding association for user {user_id}...")
+        return False
 
+
+def add_user_job_association(user_id, job_id, ratings):
+    supabase = get_supabase_client()
     users_jobs_row = {
         'user_id': user_id,
         'job_id': job_id,

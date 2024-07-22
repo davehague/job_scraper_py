@@ -1,5 +1,6 @@
 from llm import query_llm
 from helpers import consolidate_text
+from persistent_storage import save_titles_for_user
 
 
 def job_matches_stop_words(user_configs, job):
@@ -186,6 +187,10 @@ def find_best_job_titles_for_user(user, user_configs):
                            messages=[{"role": "user", "content": full_message}])
         if titles is None:  # Fall back if LLM failed
             titles = []
+        else:
+            titles = [title.strip() for title in titles.split(",")]
+            save_titles_for_user(user_id, titles)
+
     else:
         titles = db_job_titles
 

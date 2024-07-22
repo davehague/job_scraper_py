@@ -5,7 +5,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
-from job_helpers import find_best_job_titles_for_user
+from job_helpers import find_best_job_titles_for_user, job_meets_salary_requirements, job_matches_stop_words, \
+    get_job_guidance_for_user
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 from helpers import consolidate_text
 
@@ -14,9 +15,10 @@ import logging
 from pathlib import Path
 import sys
 
-from persistent_storage import save_jobs_to_supabase, get_user_configs, get_users_with_resume_and_login_last_30_days, \
+from persistent_storage import save_jobs_to_supabase, get_user_configs, get_active_users_with_resume, \
     get_recent_job_urls, \
-    save_titles_for_user, get_recent_jobs, add_association_if_not_exists, get_user_by_id, get_job_by_id
+    save_titles_for_user, get_recent_jobs, add_user_job_association, get_user_by_id, get_job_by_id, \
+    user_has_recommendation
 from llm import query_llm
 from send_emails import send_email_updates
 
@@ -291,12 +293,38 @@ def find_existing_jobs_for_users(users):
             # Find jobs that are 70% similar by title
             matching_jobs = find_titles_by_similarity(title, recent_jobs, similarity_threshold=0.7)
             for job in matching_jobs:
-                add_association_if_not_exists(user_id, job[0])
+                if user_has_recommendation(user_id, job[0]):
+                    continue
+                else:
+                    user = get_user_by_id(user_id)
+                    user_configs = get_user_configs(user_id)
+                    job_id = job[0]
+                    job = get_job_by_id(job_id)
+
+                    if not job_meets_salary_requirements(user, job):
+                        print(
+                            f"Job with URL {job_id} does not meet salary requirements for user {user_id}, skipping...")
+                        return None
+
+                    if job_matches_stop_words(user_configs, job):
+                        print(f"Job with URL {job_id} matches stop words for user {user_id}, skipping...")
+                        return None
+
+                    ratings = get_job_guidance_for_user(user, user_configs, job)
+
+                    if int(ratings.get('overall_score', 0)) < 70:
+                        print(f"Job with URL {job_id} has a score less than 70, skipping...")
+                    else:
+                        print(
+                            f"Job with URL {job_id} has a score of {ratings.get('overall_score')}, adding association "
+                            f"for user {user_id}...")
+
+                    add_user_job_association(user_id, job_id, ratings)
 
     return matched_jobs
 
 
-SCHEDULED = True
+SCHEDULED = False
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -325,7 +353,7 @@ if __name__ == '__main__':
         sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
-    eligible_users = get_users_with_resume_and_login_last_30_days()
+    eligible_users = get_active_users_with_resume()
 
     for user in eligible_users:
         user_id = user.get('id')
@@ -334,7 +362,7 @@ if __name__ == '__main__':
         # if not user.get('is_public'):
         #     continue
 
-        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
+        # if user_id != '8fb7a0cc-aae5-407b-ab61-caadaaeb776f':
         #     continue
 
         if len(user.get('resume')) < 100:
@@ -342,11 +370,8 @@ if __name__ == '__main__':
             continue
 
         configs = get_user_configs(user_id)
-        llm_job_titles = find_best_job_titles_for_user(user, configs)
-        if len(llm_job_titles) > 0:
-            save_titles_for_user(user_id, llm_job_titles)
-
-        all_jobs = get_jobs_for_user(user, llm_job_titles)
+        best_titles = find_best_job_titles_for_user(user, configs)
+        all_jobs = get_jobs_for_user(user, best_titles)
 
         cleaned_jobs = clean_up_jobs(all_jobs, configs)
 
@@ -359,7 +384,7 @@ if __name__ == '__main__':
             print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 10.")
             cleaned_jobs = cleaned_jobs.head(10)
 
-        jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, llm_job_titles, configs)
+        jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, best_titles, configs)
         sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
 
         # Save to supabase
