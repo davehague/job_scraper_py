@@ -153,7 +153,7 @@ def ask_chatgpt_about_job(question, job_description, resume=None):
 
     full_message = build_context_for_llm(job_description, resume, question)
 
-    model = "gpt-3.5-turbo"
+    model = "gpt-4o-mini"
     max_retries = 5
     wait_time = 5
 
@@ -180,41 +180,6 @@ def ask_chatgpt_about_job(question, job_description, resume=None):
     return None
 
 
-def ask_claude_about_job(question, job_description=None, resume=None):
-    load_dotenv()
-    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-    client = anthropic.Anthropic(api_key=anthropic_api_key)
-
-    full_message = build_context_for_llm(job_description, resume, question)
-
-    model = "claude-3-haiku-20240307"
-    max_retries = 5
-    wait_time = 5
-
-    for attempt in range(max_retries):
-        try:
-            message = client.messages.create(
-                model=model,
-                max_tokens=500,
-                temperature=0.0,
-                system=system_message,
-                messages=[
-                    {"role": "user", "content": full_message}
-                ]
-            )
-            return message.content[0].text
-        except anthropic.RateLimitError:
-            print(f"Rate limit exceeded, retrying in {wait_time} seconds...")
-            time.sleep(wait_time)
-            wait_time *= 2
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            break
-
-    print("Failed to get a response after multiple retries.")
-    return None
-
-
 def build_context_for_llm(job_description, resume, question):
     """Build the full message to send to the API."""
     full_message = ''
@@ -228,7 +193,7 @@ def build_context_for_llm(job_description, resume, question):
     return full_message
 
 
-def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claude"):
+def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="chatgpt"):
     if len(derived_data_questions) == 0:
         return jobs_df
 
@@ -250,8 +215,6 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="claud
         for column_name, question in derived_data_questions:
             if llm == "chatgpt":
                 answer = ask_chatgpt_about_job(question, job_description, resume)
-            elif llm == "claude":
-                answer = ask_claude_about_job(question, job_description, resume)
 
             if answer is None:
                 print(f"Failed to get a response from the LLM, breaking out of loop.")

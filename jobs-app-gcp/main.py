@@ -367,8 +367,8 @@ def jobs_app_function(context):
                 You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons in one sentence>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons, in one sentence>. Overall, I think <your overall thoughts about the match between the user and the job in one sentence>.
                 """
 
-            ratings = query_llm(llm="gemini",
-                                model_name="gemini-1.5-flash",
+            ratings = query_llm(llm="openai",
+                                model_name="gpt-4o-mini",
                                 system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                                 messages=[{"role": "user", "content": full_message}])
 
