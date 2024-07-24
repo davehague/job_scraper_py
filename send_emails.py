@@ -18,6 +18,10 @@ def send_email_updates():
             continue
 
         user_id = user['id']
+
+        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
+        #     continue
+
         user_name = user['name']
         user_email = user['email']
         unemailed_jobs = (supabase.table('recent_high_score_jobs')
@@ -36,24 +40,36 @@ def send_email_updates():
         for job in unemailed_jobs.data[:3]:
             score = int(job['score'])
             score_color = '#59c9a5' if score > 85 else '#93c1b2' if score > 75 else '#888'
+            guidance_color = '#59c9a522' if score > 85 else '#93c1b222' if score > 75 else '#88888822'
             title = job['title']
             company = job['company']
             location = job['location']
+
+            if location is None or location.strip() == "":
+                location = "Location was not provided"
 
             comp_min = job['comp_min']
             comp_max = job['comp_max']
             salary = f"${comp_min:,} - ${comp_max:,}" if comp_min and comp_max else "Pay was not provided"
 
-            guidance = job['guidance']
+            complete_guidance = job['guidance']
+            user_summary = complete_guidance.split("The hiring manager")[0].strip()
+            hiring_manager_summary = "The hiring manager " + \
+                                     complete_guidance.split("The hiring manager")[1].split("Overall")[0].strip()
+            guidance = "Overall, " + complete_guidance.split("Overall,")[1]
+
             email_jobs_data.append({
                 'id': job['id'],
                 'score': score,
                 'score_color': score_color,
+                'guidance_color': guidance_color,
                 'title': title,
                 'company': company,
                 'location': location,
                 'salary': salary,
-                'summary': guidance
+                'user_summary': user_summary,
+                'manager_summary': hiring_manager_summary,
+                'guidance': guidance
             })
 
         print(email_jobs_data)

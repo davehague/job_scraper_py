@@ -4,98 +4,81 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Job updates from the Job App</title>
-    <style>
-        body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 20px;
-                background-color: #f4f4f4;
-                color: #333;
-              }
-              .left {
-                padding: 10px;
-                vertical-align: top;
-              }
-              .right {
-                padding: 10px 20px;
-                vertical-align: top;
-              }
-              .job {
-                -webkit-box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                -moz-box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                width: 600px;
-                padding: 10px;
-              }
-              .title-and-score {
-                width: auto;
-              }
-              .title {
-                margin-top: 10px;
-                font-size: 16px;
-                font-weight: 700;
-                width: 80%;
-              }
-              .secondary-title {
-                margin: 5px 0;
-                font-weight: 400;
-                font-size: 16px;
-              }
-              .summary {
-                font-size: 14px;
-                margin: 10px 0;
-                font-weight: 400;
-              }
-              .score-circle {
-                background-color: #59c9a5;
-                border-radius: 50%;
-                color: #333;
-                font-weight: 700;
-                font-size: 24px;
-                height: 64px;
-                width: 64px;
-                text-align: center;
-                line-height: 64px;
-                transition: background-color 0.3s ease;
-              }
-              .score-circle .score-text {
-                color: white;
-              }
-                .note {
-                    font-size: 12px;
-                    font-style: italic;
-                }
-    </style>
 </head>
-<body>
-<p>
-    Hi {{ user_name }}! Good news, we scoured the internet and found new
-    jobs that we think you'll love and would be good matches for you. Check out the top jobs
-    below or click <a href="https://jobs.timetovalue.org/home">here</a> to see ALL your results!
-</p>
-<p class="note">Note that we are now hosted on a new domain (https://www.timetovalue.org), so please update your
-    bookmarks.</p>
-{% for job in jobs %}
-<table width="100%" cellpadding="0" cellspacing="0">
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #e5f0ed; color: #333;">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;">
     <tr>
-        <td class="left">
-            <div class="score-circle" style="background-color: {{ job.score_color }}">
-                <span class="score-text">{{ job.score }}</span>
-            </div>
-        </td>
-        <td class="right">
-            <a href="https://jobs.timetovalue.org/job/{{job.id}}">
-                <h2 class="title">{{ job.title }}</h2>
-            </a>
-            <h3 class="secondary-title">{{ job.company }} - {{ job.location }}</h3>
-            <h3 class="secondary-title">{{ job.salary }}</h3>
-            <p class="summary">{{ job.summary }}</p>
-
+        <td style="background-color: #fff; border-radius: 4px; padding: 16px 32px;">
+            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                    <td style="background-color: #2b6065; padding: 16px; border-radius: 4px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                                <td width="40" style="vertical-align: middle;">
+                                    <img src="https://jobs.timetovalue.org/logo.png" alt="Job Scout" style="display: block; width: 32px; height: 32px;"/>
+                                </td>
+                                <td style="vertical-align: middle;">
+                                    <h1 style="font-family: Arial, Helvetica, sans-serif; font-size: 24px; margin: 0; color: #fff;">Job Scout</h1>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 24px 0;">
+                        <p style="font-size: 14px; font-weight: 400; text-align: left;">
+                            Hi {{ user_name }}! Good news, we scoured the internet and found new
+                            jobs that we think you'll love and would be good matches for you.
+                            Check out the top jobs below or
+                            <a href="https://jobs.timetovalue.org/home">login</a> for full
+                            results!
+                        </p>
+                    </td>
+                </tr>
+                {% for job in jobs %}
+                <tr>
+                    <td style="padding-bottom: 24px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                                <td width="80" style="vertical-align: top; padding-right: 16px;">
+                                    <div style="background-color: {{ job.score_color }}; border-radius: 50%; color: #333; font-weight: 700; font-size: 24px; height: 64px; width: 64px; text-align: center; line-height: 64px;">
+                                        <span style="color: white;">{{ job.score }}</span>
+                                    </div>
+                                </td>
+                                <td style="vertical-align: top;">
+                                    <a href="https://jobs.timetovalue.org/job/{{job.id}}" style="color: #000; text-decoration: none;">
+                                        <h2 style="margin: 0; font-size: 24px; font-weight: 700;">{{ job.title }}</h2>
+                                    </a>
+                                    <p style="margin: 5px 0; font-weight: 400; font-size: 16px;">{{ job.company }} ({{ job.location }})</p>
+                                    <p style="margin: 5px 0; font-weight: 400; font-size: 16px;">{{ job.salary }}</p>
+                                    <h3 style="font-size: 16px; font-weight: 700; margin: 16px 0 0 0;">What you may think of this job</h3>
+                                    <p style="font-size: 14px; margin: 10px 0; font-weight: 400;">{{ job.user_summary }}</p>
+                                    <h3 style="font-size: 16px; font-weight: 700; margin: 16px 0 0 0;">What the hiring manager may think</h3>
+                                    <p style="font-size: 14px; margin: 10px 0; font-weight: 400;">{{ job.manager_summary }}</p>
+                                    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {{ job.guidance_color }}; border-radius: 4px; margin-top: 16px;">
+                                      <tr>
+                                          <td width="24" style="padding: 8px; vertical-align: middle;">
+                                              <img src="https://jobs.timetovalue.org/fa-lightbulb.png" alt="Guidance" style="display: block; width: 18px; height: 24px;"/>
+                                          </td>
+                                          <td style="padding: 8px; vertical-align: middle;">
+                                              <p style="margin: 0;">{{ job.guidance }}</p>
+                                          </td>
+                                      </tr>
+                                  </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td style="padding-top: 24px; text-align: center;">
+                        <a href="https://jobs.timetovalue.org/home" style="background-color: #2b6065; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; padding: 8px 12px; color: #fff; text-decoration: none;">View all results</a>
+                    </td>
+                </tr>
+            </table>
         </td>
     </tr>
 </table>
-{% endfor %}
-<p>{% if total_job_count > 3 %}...and {{ total_job_count - 3 }} more!{% endif %}. Click <a
-        href="https://jobs.timetovalue.org/home">here</a> to log in for more details and for full results.</p>
 </body>
 </html>

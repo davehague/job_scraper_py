@@ -281,6 +281,10 @@ def find_existing_jobs_for_users(users):
     # Get all recent job and their title (id, title)
     recent_jobs = get_recent_jobs(days_old=1)
 
+    if len(recent_jobs) == 0:
+        print("No recent jobs found, skipping...")
+        return None
+
     for user in users:
         # Get the users job titles
         user_id = user.get('id')
@@ -359,10 +363,7 @@ if __name__ == '__main__':
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
 
-        # if not user.get('is_public'):
-        #     continue
-
-        # if user_id != '8fb7a0cc-aae5-407b-ab61-caadaaeb776f':
+        # if user_id != '7d4cdc06-7929-453d-9ab0-88a5901a22fd':
         #     continue
 
         if len(user.get('resume')) < 100:
