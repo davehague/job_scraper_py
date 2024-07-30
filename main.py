@@ -18,7 +18,7 @@ import sys
 from persistent_storage import save_jobs_to_supabase, get_user_configs, get_active_users_with_resume, \
     get_recent_job_urls, \
     save_titles_for_user, get_recent_jobs, add_user_job_association, get_user_by_id, get_job_by_id, \
-    user_has_recommendation
+    user_has_recommendation, create_new_job, create_new_job_if_not_exists
 from llm import query_llm
 from send_emails import send_email_updates
 
@@ -296,6 +296,8 @@ def find_existing_jobs_for_users(users):
         for title in user_titles:
             # Find jobs that are 70% similar by title
             matching_jobs = find_titles_by_similarity(title, recent_jobs, similarity_threshold=0.7)
+            print(
+                f"Found {len(matching_jobs)} matching jobs for user {user_id} with title 70% similar to title {title}")
             for job in matching_jobs:
                 if user_has_recommendation(user_id, job[0]):
                     continue
@@ -308,11 +310,11 @@ def find_existing_jobs_for_users(users):
                     if not job_meets_salary_requirements(user, job):
                         print(
                             f"Job with URL {job_id} does not meet salary requirements for user {user_id}, skipping...")
-                        return None
+                        continue
 
                     if job_matches_stop_words(user_configs, job):
                         print(f"Job with URL {job_id} matches stop words for user {user_id}, skipping...")
-                        return None
+                        continue
 
                     ratings = get_job_guidance_for_user(user, user_configs, job)
 
@@ -374,22 +376,27 @@ if __name__ == '__main__':
         best_titles = find_best_job_titles_for_user(user, configs)
         all_jobs = get_jobs_for_user(user, best_titles)
 
-        cleaned_jobs = clean_up_jobs(all_jobs, configs)
+        print(f"Found {len(all_jobs)} jobs for user {user_id}")
+        for index, row in all_jobs.iterrows():
+            create_new_job_if_not_exists(row)
 
-        if len(cleaned_jobs) == 0:
-            print("No jobs found, trying the next user.")
-            time.sleep(15)
-            continue
-
-        if len(cleaned_jobs) > 10:
-            print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 10.")
-            cleaned_jobs = cleaned_jobs.head(10)
-
-        jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, best_titles, configs)
-        sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
-
-        # Save to supabase
-        save_jobs_to_supabase(user_id, sorted_jobs)
+        # Now, try to find some good jobs for this user from the top 10
+        # cleaned_jobs = clean_up_jobs(all_jobs, configs)
+        #
+        # if len(cleaned_jobs) == 0:
+        #     print("No jobs found, trying the next user.")
+        #     time.sleep(15)
+        #     continue
+        #
+        # if len(cleaned_jobs) > 10:
+        #     print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 10.")
+        #     cleaned_jobs = cleaned_jobs.head(10)
+        #
+        # jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, best_titles, configs)
+        # sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
+        #
+        # # Save to supabase
+        # save_jobs_to_supabase(user_id, sorted_jobs)
 
     find_existing_jobs_for_users(eligible_users)
     send_email_updates()

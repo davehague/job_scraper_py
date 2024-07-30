@@ -1,3 +1,5 @@
+import re
+
 from llm import query_llm
 from helpers import consolidate_text
 from persistent_storage import save_titles_for_user
@@ -14,7 +16,8 @@ def job_matches_stop_words(user_configs, job):
     job_description = consolidate_text(job_description)
 
     for stop_word in stop_words:
-        if stop_word in job_title or stop_word in job_description:
+        pattern = r'\b' + re.escape(stop_word) + r'\b'
+        if re.search(pattern, job_title) or re.search(pattern, job_description):
             return True
 
     return False
@@ -22,8 +25,12 @@ def job_matches_stop_words(user_configs, job):
 
 def job_meets_salary_requirements(user, job):
     candidate_min_salary = user.get('min_salary')
-    job_max_salary = job.get('max_amount') or 0
-    return job_max_salary >= candidate_min_salary
+    job_max_salary = job.get('max_amount')
+
+    if job_max_salary is None:
+        return True
+    else:
+        return job_max_salary >= candidate_min_salary
 
 
 def get_job_guidance_for_user(db_user, user_configs, job):

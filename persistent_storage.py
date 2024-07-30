@@ -199,6 +199,21 @@ def save_jobs_to_supabase(user_id, df):
         create_new_job_association(supabase, user_id, job_id, row)
 
 
+def create_new_job_if_not_exists(row):
+    supabase = get_supabase_client()
+    job_exists = supabase.table('jobs').select('id').eq('url', row.get('job_url', 'N/A')).execute()
+    if not job_exists.data:
+        print(f"Job with URL {row.get('job_url', 'N/A')} does not exist, creating new job...")
+        result = create_new_job(supabase, row)
+        job_id = result.data[0].get('id')
+        if not result.data:
+            print(f"Error inserting job: {result.error}")
+    else:
+        job_id = job_exists.data[0].get('id')
+
+    return job_id
+
+
 def create_new_job(supabase, row):
     new_job = {
         'title': row.get('title'),
