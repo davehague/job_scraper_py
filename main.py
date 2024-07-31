@@ -5,6 +5,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
+from analyzer import compare_resume_to_job, find_top_job_matches
 from job_helpers import find_best_job_titles_for_user, job_meets_salary_requirements, job_matches_stop_words, \
     get_job_guidance_for_user
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
@@ -18,7 +19,7 @@ import sys
 from persistent_storage import save_jobs_to_supabase, get_user_configs, get_active_users_with_resume, \
     get_recent_job_urls, \
     save_titles_for_user, get_recent_jobs, add_user_job_association, get_user_by_id, get_job_by_id, \
-    user_has_recommendation, create_new_job, create_new_job_if_not_exists
+    user_has_recommendation, create_new_job, create_new_job_if_not_exists, get_user_job_matches
 from llm import query_llm
 from send_emails import send_email_updates
 
@@ -179,7 +180,7 @@ def get_jobs_for_user(db_user, job_titles):
         distance = 20
 
     db_results_wanted = db_user.get('results_wanted')
-    results_wanted = db_results_wanted if db_results_wanted is not None else 20
+    results_wanted = db_results_wanted if db_results_wanted is not None else 5
     scraped_data = scrape_job_data(
         user_id,
         job_titles,
@@ -209,7 +210,7 @@ def clean_up_jobs(jobs_df, user_configs):
     go_words = db_go_words or []
     candidate_min_salary = db_candidate_min_salary if db_candidate_min_salary is not None else 0
 
-    recent_job_urls = get_recent_job_urls(3)
+    recent_job_urls = get_recent_job_urls(days_old=3)
     results_df = clean_and_deduplicate_jobs(jobs_df, recent_job_urls,
                                             stop_words, go_words, candidate_min_salary, similarity_threshold=0.9)
     return results_df
@@ -252,6 +253,9 @@ def find_titles_by_similarity(target_title, job_list, similarity_threshold=0.9):
     # Extract job titles from job_list
     job_ids, job_titles = zip(*job_list)
 
+    print(f"Target title: {target_title}")
+    print(f"Number of job titles to compare: {len(job_titles)}")
+
     # Combine target_title with job_titles
     all_titles = [target_title] + list(job_titles)
 
@@ -259,11 +263,20 @@ def find_titles_by_similarity(target_title, job_list, similarity_threshold=0.9):
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(all_titles)
 
+    print("Top 10 features (words) by importance:")
+    feature_names = vectorizer.get_feature_names_out()
+    feature_importances = np.sum(tfidf_matrix.toarray(), axis=0)
+    top_features = sorted(zip(feature_names, feature_importances), key=lambda x: x[1], reverse=True)[:10]
+    for feature, importance in top_features:
+        print(f"  {feature}: {importance:.4f}")
+
     # Compute cosine similarity
     cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:])
 
     # Find indices where similarity is above the threshold
     similar_indices = np.where(cosine_sim[0] >= similarity_threshold)[0]
+
+    print(f"Number of matches above threshold ({similarity_threshold}): {len(similar_indices)}")
 
     # Create list of matching jobs
     matching_jobs = [
@@ -274,19 +287,26 @@ def find_titles_by_similarity(target_title, job_list, similarity_threshold=0.9):
     # Sort matching jobs by similarity in descending order
     matching_jobs.sort(key=lambda x: x[2], reverse=True)
 
-    return matching_jobs
+    print("Top 5 matches:")
+    for job_id, job_title, similarity in matching_jobs[:5]:
+        print(f"  ID: {job_id}, Title: {job_title}, Similarity: {similarity:.4f}")
+
+    return matching_jobs[:5]
 
 
 def find_existing_jobs_for_users(users):
     # Get all recent job and their title (id, title)
-    recent_jobs = get_recent_jobs(days_old=1)
+    recent_jobs = get_recent_jobs(days_old=2)
+    print(f"Found {len(recent_jobs)} recent jobs")
 
     if len(recent_jobs) == 0:
         print("No recent jobs found, skipping...")
         return None
 
     for user in users:
-        # Get the users job titles
+        user_job_matches = get_user_job_matches(user.get('id'))
+        user_job_ids = {match['job_id'] for match in user_job_matches}
+
         user_id = user.get('id')
         configs = get_user_configs(user_id)
         db_job_titles = [config['string_value'] for config in configs if config['key'] == 'job_titles']
@@ -294,8 +314,9 @@ def find_existing_jobs_for_users(users):
 
         matched_jobs = []
         for title in user_titles:
-            # Find jobs that are 70% similar by title
-            matching_jobs = find_titles_by_similarity(title, recent_jobs, similarity_threshold=0.7)
+            non_matching_jobs = [job for job in recent_jobs if job[0] not in user_job_ids]
+            # Find jobs that are similar by title
+            matching_jobs = find_titles_by_similarity(title, non_matching_jobs, similarity_threshold=0.6)
             print(
                 f"Found {len(matching_jobs)} matching jobs for user {user_id} with title 70% similar to title {title}")
             for job in matching_jobs:
@@ -318,19 +339,13 @@ def find_existing_jobs_for_users(users):
 
                     ratings = get_job_guidance_for_user(user, user_configs, job)
 
-                    if int(ratings.get('overall_score', 0)) < 70:
-                        print(f"Job with URL {job_id} has a score less than 70, skipping...")
-                    else:
-                        print(
-                            f"Job with URL {job_id} has a score of {ratings.get('overall_score')}, adding association "
-                            f"for user {user_id}...")
-
                     add_user_job_association(user_id, job_id, ratings)
+                    user_job_ids.add(job_id)
 
     return matched_jobs
 
 
-SCHEDULED = False
+SCHEDULED = True
 if __name__ == '__main__':
 
     if SCHEDULED:
@@ -360,7 +375,6 @@ if __name__ == '__main__':
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
     eligible_users = get_active_users_with_resume()
-
     for user in eligible_users:
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
@@ -379,24 +393,24 @@ if __name__ == '__main__':
         print(f"Found {len(all_jobs)} jobs for user {user_id}")
         for index, row in all_jobs.iterrows():
             create_new_job_if_not_exists(row)
+        print("Jobs added to supabase")
 
         # Now, try to find some good jobs for this user from the top 10
-        # cleaned_jobs = clean_up_jobs(all_jobs, configs)
-        #
-        # if len(cleaned_jobs) == 0:
-        #     print("No jobs found, trying the next user.")
-        #     time.sleep(15)
-        #     continue
-        #
-        # if len(cleaned_jobs) > 10:
-        #     print(f"We've got {len(cleaned_jobs)} cleaned jobs, truncating to 10.")
-        #     cleaned_jobs = cleaned_jobs.head(10)
-        #
-        # jobs_with_derived = get_jobs_with_derived(user, cleaned_jobs, best_titles, configs)
-        # sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
-        #
-        # # Save to supabase
-        # save_jobs_to_supabase(user_id, sorted_jobs)
+        cleaned_jobs = clean_up_jobs(all_jobs, configs)
+        if len(cleaned_jobs) == 0:
+            print("No jobs found, trying the next user.")
+            time.sleep(15)
+            continue
+
+        top_10_matches = find_top_job_matches(user.get('resume'), cleaned_jobs)
+        top_10_match_urls = top_10_matches['job_url'].tolist()
+
+        top_10_jobs = cleaned_jobs[cleaned_jobs['job_url'].isin(top_10_match_urls)]
+        jobs_with_derived = get_jobs_with_derived(user, top_10_jobs, best_titles, configs)
+        sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
+
+        # Save to supabase
+        save_jobs_to_supabase(user_id, sorted_jobs)
 
     find_existing_jobs_for_users(eligible_users)
     send_email_updates()

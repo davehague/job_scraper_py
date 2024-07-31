@@ -8,16 +8,12 @@ from persistent_storage import save_titles_for_user
 def job_matches_stop_words(user_configs, job):
     db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
     job_title = job.get('title')
-    job_description = job.get('description')
-
     stop_words = db_stop_words or []
 
     job_title = consolidate_text(job_title)
-    job_description = consolidate_text(job_description)
-
     for stop_word in stop_words:
         pattern = r'\b' + re.escape(stop_word) + r'\b'
-        if re.search(pattern, job_title) or re.search(pattern, job_description):
+        if re.search(pattern, job_title):
             return True
 
     return False

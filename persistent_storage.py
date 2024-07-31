@@ -96,6 +96,20 @@ def get_user_configs(user_id):
         return {}
 
 
+def get_user_job_matches(user_id):
+    supabase = get_supabase_client()
+    response = (supabase.table('users_jobs')
+                .select('user_id, job_id')
+                .eq('user_id', user_id)
+                .execute())
+
+    if response.data:
+        return response.data
+    else:
+        print(f"Error fetching user job matches: {response.error}")
+        return None
+
+
 def get_active_users_with_resume():
     supabase = get_supabase_client()
     response = supabase.rpc('get_active_users_with_resume').execute()
@@ -172,9 +186,6 @@ def save_jobs_to_supabase(user_id, df):
             print("job_score cannot be converted to an integer")
             continue
 
-        if job_score < 50:
-            continue
-
         job_exists = supabase.table('jobs').select('id').eq('url', row.get('job_url', 'N/A')).execute()
         if not job_exists.data:
             print(f"Job with URL {row.get('job_url', 'N/A')} does not exist, creating new job...")
@@ -186,17 +197,11 @@ def save_jobs_to_supabase(user_id, df):
         else:
             job_id = job_exists.data[0].get('id')
 
-        user_has_recommendation = (supabase.table('recent_high_score_jobs')
-                                   .select('id')
-                                   .eq('user_id', user_id)
-                                   .eq('url', row.get('job_url', ''))
-                                   .execute())
-
-        if user_has_recommendation.data:
+        if user_has_recommendation(user_id, job_id):
             print(f"Job with URL {row.get('job_url', 'N/A')} already exists for user {user_id}, skipping...")
             continue
-
-        create_new_job_association(supabase, user_id, job_id, row)
+        else:
+            create_new_job_association(supabase, user_id, job_id, row)
 
 
 def create_new_job_if_not_exists(row):
