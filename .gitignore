@@ -164,6 +164,7 @@ cython_debug/
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
+.idea/**/codeStyleConfig.xml
 
 .idea/**/*.iml
 .idea/**/misc.xml
