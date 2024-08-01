@@ -139,30 +139,45 @@ def get_recent_jobs(days_old=7):
         return None
 
 
-def get_recent_job_urls(days_old=5):
+def update_job_in_supabase(job):
     supabase = get_supabase_client()
-    response = (supabase.table('jobs')
-                .select('url, date_posted, date_pulled')
-                .execute())
+    job_id = job.get('id')
+    job_exists = supabase.table('jobs').select('id').eq('id', job_id).execute()
+    if not job_exists.data:
+        print(f"Job with ID {job_id} does not exist, skipping...")
+        return
 
-    if response.data or response.data == []:
-        cutoff_date = datetime.now() - timedelta(days=days_old)
-        urls = []
-        for item in response.data:
-            date_posted = item.get('date_posted')
-            date_pulled = item.get('date_pulled')
-            if date_posted:
-                job_date = pd.to_datetime(date_posted)
-            else:
-                job_date = pd.to_datetime(date_pulled)
+    job_data = {
+        'title': job.get('title'),
+        'company': job.get('company'),
+        'short_summary': job.get('short_summary'),
+        'hard_requirements': job.get('hard_requirements'),
+        'job_site': job.get('site'),
+        'url': job.get('job_url'),
+        'location': None if pd.isna(job.get('location')) else job.get('location'),
+        'date_posted': convert_to_date(job.get('date_posted')),
+        'comp_interval': None if pd.isna(job.get('interval')) else job.get('interval'),
+        'comp_min': convert_to_int(job.get('min_amount')),
+        'comp_max': convert_to_int(job.get('max_amount')),
+        'comp_currency': None if pd.isna(job.get('currency')) else job.get('currency'),
+        'emails': None if pd.isna(job.get('emails')) else job.get('emails'),
+        'description': job.get('description'),
+        'date_pulled': datetime.now().isoformat(),
+        'searched_title': job.get('searched_title')
+    }
 
-            if job_date and job_date > cutoff_date:
-                urls.append(item['url'])
-
-        return urls
-    else:
-        print(f"Error fetching job URLs: {response.error}")
+    try:
+        result = supabase.table('jobs').update(job_data).eq('id', job_id).execute()
+        if result.data:
+            print(f"Updated job with ID {job_id}!")  # {result.data}")
+        else:
+            print(f"Error updating job: {result.error}")
+    except Exception as e:
+        print(f"Error updating job: {e}")
+        print(f"Error on job data: {job_data}")
         return None
+
+    return result
 
 
 def save_jobs_to_supabase(user_id, df):

@@ -241,7 +241,7 @@ def get_new_rows(df1, df2):
     return new_rows
 
 
-def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words,
+def clean_and_deduplicate_jobs(all_jobs, stop_words, go_words,
                                candidate_min_salary,
                                similarity_threshold=0.9):
     if all_jobs.empty:
@@ -249,10 +249,6 @@ def clean_and_deduplicate_jobs(all_jobs, recent_job_urls, stop_words, go_words,
         return all_jobs
     else:
         print(f"Cleaning {len(all_jobs)} jobs")
-
-    # remove all jobs that are already in the database (based on URL)
-    all_jobs = all_jobs[~all_jobs['job_url'].isin(recent_job_urls)]
-    print(f"Removed jobs already in the database, now we have {len(all_jobs)} jobs")
 
     all_jobs_cols_removed = remove_extraneous_columns(all_jobs)
 

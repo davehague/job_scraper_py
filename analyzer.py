@@ -52,7 +52,7 @@ def compare_resume_to_job(resume_text, job_title, job_description, similarity_th
     # Compute cosine similarity
     cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
 
-    print(f"Similarity score: {cosine_sim:.4f}")
+    # print(f"Similarity score: {cosine_sim:.4f}")
 
     # Get top matching features
     feature_names = vectorizer.get_feature_names_out()
@@ -66,9 +66,9 @@ def compare_resume_to_job(resume_text, job_title, job_description, similarity_th
 
     matching_features.sort(key=lambda x: x[1], reverse=True)
 
-    print("\nTop 10 matching keywords/phrases:")
-    for feature, score in matching_features[:10]:
-        print(f"  {feature}: {score:.4f}")
+    # print("\nTop 10 matching keywords/phrases:")
+    # for feature, score in matching_features[:10]:
+    #     print(f"  {feature}: {score:.4f}")
 
     # Find missing important job keywords
     missing_features = []
@@ -78,9 +78,9 @@ def compare_resume_to_job(resume_text, job_title, job_description, similarity_th
 
     missing_features.sort(key=lambda x: x[1], reverse=True)
 
-    print("\nTop 10 important job keywords missing from resume:")
-    for feature, score in missing_features[:10]:
-        print(f"  {feature}: {score:.4f}")
+    # print("\nTop 10 important job keywords missing from resume:")
+    # for feature, score in missing_features[:10]:
+    #     print(f"  {feature}: {score:.4f}")
 
     return cosine_sim, matching_features, missing_features
 

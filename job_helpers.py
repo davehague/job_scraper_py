@@ -198,3 +198,63 @@ def find_best_job_titles_for_user(user, user_configs):
         titles = db_job_titles
 
     return titles
+
+
+def get_derived_data_for_job(job):
+    system_message = ("You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
+                      "descriptions, and answering questions about job descriptions in a concise and targeted manner. "
+                      "\nOnly return text, not markdown or HTML.")
+
+    derived_data_questions = [('short_summary',
+                               'Provide a short summary of the job.  If the job is fully remote, start with'
+                               ' the sentence "Fully remote! ", otherwise skip this step.  Then, after a'
+                               ' newline, include a single sentence related to the compensation.'
+                               ' Start this sentence with the words "Pay for this role is "'
+                               ' OR simply state "Pay was not specified. "'
+                               ' Next have a newline, then a single'
+                               ' sentence with the minimum number of years experience.  Include the type of'
+                               ' experience being looked for. Next have a newline, followed by key job'
+                               ' responsibilities (no more than 3 sentences).  Finally, have a newline and'
+                               ' follow with job benefits (no more than 3 sentences)'
+                               ),
+                              ('hard_requirements',
+                               'Summarize the hard requirements, things the candidate "must have" from the'
+                               ' description.  Start the list with the number of years experience,'
+                               ' if specified.  Limit this list to 4 bullet points of no more than 1 sentence'
+                               ' each')
+                              ]
+
+    job_description = f"Title: {job.get('title', 'N/A')}\nCompany: {job.get('company', 'N/A')}\nLocation: {job.get('location', 'N/A')}\n" \
+                      f"Description: {job.get('description', 'N/A')}\n"
+
+    pay_info = (
+        f"Pays between {job.get('min_amount', 'N/A')} and {job.get('max_amount', 'N/A')} on a(n) {job.get('interval', 'N/A')}'"
+        f" basis.") if job.get('interval', '') else ""
+
+    job_description += pay_info
+    job_description = consolidate_text(job_description)
+    full_message = ("Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
+                    "===) \n===\n") + job_description + "\n===\n"
+
+    derived_data = {}
+    for column_name, question in derived_data_questions:
+        llm_message = full_message + question
+        answer = query_llm(llm="openai",
+                           model_name="gpt-4o-mini",
+                           system=system_message,
+                           messages=[{"role": "user", "content": llm_message}])
+        derived_data[column_name] = answer
+
+    return derived_data
+
+
+def build_context_for_llm(job_description, resume, question):
+    full_message = ''
+    if resume is not None:
+        full_message += "Here is the candidate's resume, below\n"
+        full_message += resume + "\n\n"
+    if job_description:
+        full_message += ("Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
+                         "===) \n===\n") + job_description + "\n===\n"
+    full_message += "Now for my question: \n" + question
+    return full_message

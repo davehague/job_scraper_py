@@ -7,7 +7,7 @@ import numpy as np
 
 from analyzer import compare_resume_to_job, find_top_job_matches
 from job_helpers import find_best_job_titles_for_user, job_meets_salary_requirements, job_matches_stop_words, \
-    get_job_guidance_for_user
+    get_job_guidance_for_user, get_derived_data_for_job
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, sort_job_data, add_derived_data, reorder_columns
 from helpers import consolidate_text
 
@@ -17,9 +17,8 @@ from pathlib import Path
 import sys
 
 from persistent_storage import save_jobs_to_supabase, get_user_configs, get_active_users_with_resume, \
-    get_recent_job_urls, \
-    save_titles_for_user, get_recent_jobs, add_user_job_association, get_user_by_id, get_job_by_id, \
-    user_has_recommendation, create_new_job, create_new_job_if_not_exists, get_user_job_matches
+    get_recent_jobs, add_user_job_association, get_user_by_id, get_job_by_id, \
+    user_has_recommendation, create_new_job_if_not_exists, get_user_job_matches, update_job_in_supabase
 from llm import query_llm
 from send_emails import send_email_updates
 
@@ -210,19 +209,14 @@ def clean_up_jobs(jobs_df, user_configs):
     go_words = db_go_words or []
     candidate_min_salary = db_candidate_min_salary if db_candidate_min_salary is not None else 0
 
-    recent_job_urls = get_recent_job_urls(days_old=3)
-    results_df = clean_and_deduplicate_jobs(jobs_df, recent_job_urls,
-                                            stop_words, go_words, candidate_min_salary, similarity_threshold=0.9)
+    results_df = clean_and_deduplicate_jobs(jobs_df, stop_words, go_words, candidate_min_salary,
+                                            similarity_threshold=0.9)
     return results_df
 
 
 def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
     db_resume = db_user.get('resume')
     resume = db_resume
-
-    # TODO : we're not using the skill words
-    db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
-    skill_words = db_skill_words or []
 
     derived_data_questions = [('short_summary',
                                'Provide a short summary of the job.  If the job is fully remote, start with'
@@ -323,10 +317,18 @@ def find_existing_jobs_for_users(users):
                 if user_has_recommendation(user_id, job[0]):
                     continue
                 else:
-                    user = get_user_by_id(user_id)
-                    user_configs = get_user_configs(user_id)
                     job_id = job[0]
                     job = get_job_by_id(job_id)
+
+                    # Confirm the job has a short_summary, hard_requirements
+                    if job.get('short_summary') is None or job.get('hard_requirements') is None:
+                        derived_data = get_derived_data_for_job(job)
+                        job['short_summary'] = derived_data.get('short_summary')
+                        job['hard_requirements'] = derived_data.get('hard_requirements')
+                        update_job_in_supabase(job)
+
+                    user = get_user_by_id(user_id)
+                    user_configs = get_user_configs(user_id)
 
                     if not job_meets_salary_requirements(user, job):
                         print(
@@ -391,11 +393,13 @@ if __name__ == '__main__':
         all_jobs = get_jobs_for_user(user, best_titles)
 
         print(f"Found {len(all_jobs)} jobs for user {user_id}")
-        for index, row in all_jobs.iterrows():
-            create_new_job_if_not_exists(row)
-        print("Jobs added to supabase")
 
-        # Now, try to find some good jobs for this user from the top 10
+        # TODO: Find a way to add all jobs to DB without adding short summary and hard_requirements upon initial insert
+        # for index, row in all_jobs.iterrows():
+        #     create_new_job_if_not_exists(row)
+        # print("Jobs added to supabase")
+
+        # Now, try to find some good jobs for this user
         cleaned_jobs = clean_up_jobs(all_jobs, configs)
         if len(cleaned_jobs) == 0:
             print("No jobs found, trying the next user.")
@@ -407,10 +411,12 @@ if __name__ == '__main__':
 
         top_10_jobs = cleaned_jobs[cleaned_jobs['job_url'].isin(top_10_match_urls)]
         jobs_with_derived = get_jobs_with_derived(user, top_10_jobs, best_titles, configs)
-        sorted_jobs = sort_job_data(jobs_with_derived, ['job_score'], [False])
 
-        # Save to supabase
-        save_jobs_to_supabase(user_id, sorted_jobs)
+        save_jobs_to_supabase(user_id, jobs_with_derived)
+
+        # for index, row in jobs_with_derived.iterrows():
+        #     update_job_in_supabase(row)  # Add the derived data
+        #     add_user_job_association(user_id, row.get('id'))
 
     find_existing_jobs_for_users(eligible_users)
     send_email_updates()
