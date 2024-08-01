@@ -178,8 +178,8 @@ def get_jobs_for_user(db_user, job_titles):
     if distance < 20:
         distance = 20
 
-    db_results_wanted = db_user.get('results_wanted')
-    results_wanted = db_results_wanted if db_results_wanted is not None else 5
+    # db_results_wanted = db_user.get('results_wanted')
+    results_wanted = 5  # db_results_wanted if db_results_wanted is not None else 5
     scraped_data = scrape_job_data(
         user_id,
         job_titles,
@@ -257,12 +257,12 @@ def find_titles_by_similarity(target_title, job_list, similarity_threshold=0.9):
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(all_titles)
 
-    print("Top 10 features (words) by importance:")
+    # print("Top 10 features (words) by importance:")
     feature_names = vectorizer.get_feature_names_out()
     feature_importances = np.sum(tfidf_matrix.toarray(), axis=0)
     top_features = sorted(zip(feature_names, feature_importances), key=lambda x: x[1], reverse=True)[:10]
-    for feature, importance in top_features:
-        print(f"  {feature}: {importance:.4f}")
+    # for feature, importance in top_features:
+    #     print(f"  {feature}: {importance:.4f}")
 
     # Compute cosine similarity
     cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:])
@@ -310,9 +310,11 @@ def find_existing_jobs_for_users(users):
         for title in user_titles:
             non_matching_jobs = [job for job in recent_jobs if job[0] not in user_job_ids]
             # Find jobs that are similar by title
-            matching_jobs = find_titles_by_similarity(title, non_matching_jobs, similarity_threshold=0.6)
-            print(
-                f"Found {len(matching_jobs)} matching jobs for user {user_id} with title 70% similar to title {title}")
+            similarity_threshold = 0.6
+            matching_jobs = find_titles_by_similarity(title, non_matching_jobs,
+                                                      similarity_threshold=similarity_threshold)
+            print(f"Found {len(matching_jobs)} matching jobs for user {user_id} based on title similar "
+                  f"({similarity_threshold}) to title {title}")
             for job in matching_jobs:
                 if user_has_recommendation(user_id, job[0]):
                     continue
