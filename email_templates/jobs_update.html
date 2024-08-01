@@ -40,15 +40,19 @@
                     <td style="padding-bottom: 24px;">
                         <table cellpadding="0" cellspacing="0" border="0" width="100%">
                             <tr>
-                                <td width="80" style="vertical-align: top; padding-right: 16px;">
-                                    <div style="background-color: {{ job.score_color }}; border-radius: 50%; color: #333; font-weight: 700; font-size: 24px; height: 64px; width: 64px; text-align: center; line-height: 64px;">
+                                <td width="64" style="vertical-align: top; padding-right: 8px;">
+                                    <div style="background-color: {{ job.score_color }}; border-radius: 50%; color: #333; font-weight: 700; font-size: 20px; height: 48px; width: 48px; text-align: center; line-height: 48px;">
                                         <span style="color: white;">{{ job.score }}</span>
                                     </div>
                                 </td>
-                                <td style="vertical-align: top;">
+                                <td>
                                     <a href="https://jobs.timetovalue.org/job/{{job.id}}" style="color: #000; text-decoration: none;">
-                                        <h2 style="margin: 0; font-size: 24px; font-weight: 700;">{{ job.title }}</h2>
+                                        <h2 style="margin: 0; font-size: 20px; font-weight: 700;">{{ job.title }}</h2>
                                     </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="vertical-align: top; padding-top:8px;">
                                     <p style="margin: 5px 0; font-weight: 400; font-size: 16px;">{{ job.company }} ({{ job.location }})</p>
                                     <p style="margin: 5px 0; font-weight: 400; font-size: 16px;">{{ job.salary }}</p>
                                     <h3 style="font-size: 16px; font-weight: 700; margin: 16px 0 0 0;">What you may think of this job</h3>
