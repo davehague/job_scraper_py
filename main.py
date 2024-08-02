@@ -244,6 +244,10 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
 
 
 def find_titles_by_similarity(target_title, job_list, similarity_threshold=0.9):
+    if len(job_list) == 0:
+        print("No jobs to compare, skipping...")
+        return []
+
     # Extract job titles from job_list
     job_ids, job_titles = zip(*job_list)
 
