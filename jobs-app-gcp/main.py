@@ -573,7 +573,7 @@ def jobs_app_function(context):
         logging.info(f"Job titles found within user info: {job_titles}")
 
     all_jobs = []
-    job_sites = ['indeed', 'glassdoor', 'zip_recruiter', 'linkedin']
+    job_sites = ['indeed', 'glassdoor', 'zip_recruiter', 'linkedin', 'google']
     for job_site in job_sites:
         all_jobs = get_jobs_for_user(job_site, user_id, job_titles)
         if len(all_jobs) > 0:

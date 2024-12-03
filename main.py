@@ -183,7 +183,7 @@ def get_jobs_for_user(db_user, job_titles):
     scraped_data = scrape_job_data(
         user_id,
         job_titles,
-        job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],
+        job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin', 'google'],
         location=db_location,
         hours_old=24,
         results_wanted=results_wanted,
