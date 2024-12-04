@@ -179,8 +179,8 @@ def find_best_job_titles_for_user(user, user_configs):
 
     if not db_job_titles:
         print("No job titles found in the database, using LLM to find job titles.")
-        titles = query_llm(llm="anthropic",
-                           model_name="claude-3-opus-20240229",
+        titles = query_llm(llm="openai",
+                           model_name="gpt-4o-mini",
                            system="You are an expert in searching job listings. You take all the information"
                                   " given to you and come up with a list of 3 most relevant job titles. You do not"
                                   " have to use the job titles provided by the candidate, but take them into"

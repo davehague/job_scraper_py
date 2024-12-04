@@ -295,7 +295,7 @@ def jobs_app_function(context):
                 full_message = build_context_for_llm(job_description, user_provided_info, question)
                 full_message = consolidate_text(full_message)
 
-                answer = query_llm(llm='openai', model_name='gpt-3.5-turbo',
+                answer = query_llm(llm='openai', model_name='gpt-4o-mini',
                                    system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
                                           " them to the letter. Only return plain text, not markdown or HTML.",
                                    messages=[{"role": "user", "content": full_message}])
@@ -592,9 +592,9 @@ def jobs_app_function(context):
     jobs_with_derived = get_jobs_with_derived(cleaned_jobs_subset, user_provided_info)
     save_jobs_to_supabase(user_id, jobs_with_derived)
 
-    # If jobs_with_derived doesn't have a job over 80, get the next 10 jobs
-    if len(jobs_with_derived[jobs_with_derived['job_score'].astype(float) > 80]) == 0:
-        logging.info("No jobs over 80 found, getting the next 10 jobs...")
+    # If jobs_with_derived doesn't have a job over 70, get the next 10 jobs
+    if len(jobs_with_derived[jobs_with_derived['job_score'].astype(float) > 70]) == 0:
+        logging.info("No jobs over 70 found, getting the next 10 jobs...")
         jobs_with_derived_second = get_jobs_with_derived(cleaned_jobs_second, user_provided_info)
         save_jobs_to_supabase(user_id, jobs_with_derived_second)
 
