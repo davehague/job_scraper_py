@@ -312,11 +312,11 @@ def create_new_job_association(supabase, user_id, job_id, row):
     users_jobs_row = {
         'user_id': user_id,
         'job_id': job_id,
-        'desire_score': row.get('desire_score'),
-        'experience_score': row.get('experience_score'),
-        'meets_requirements_score': row.get('meets_requirements_score'),
-        'meets_experience_score': row.get('meets_experience_score'),
-        'score': row.get('job_score'),
+        'desire_score': int(row.get('desire_score', 0)),
+        'experience_score': int(row.get('experience_score', 0)),
+        'meets_requirements_score': int(row.get('meets_requirements_score', 0)),
+        'meets_experience_score': int(row.get('meets_experience_score', 0)),
+        'score': int(row.get('job_score', 0)),
         'guidance': row.get('guidance')
     }
     try:

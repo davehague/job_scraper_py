@@ -6,6 +6,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 from analyzer import find_top_job_matches
+from calculate_scores import calculate_desire_score, calculate_experience_score, calculate_requirements_score, \
+    calculate_experience_requirements_score, calculate_overall_score
 from job_helpers import find_best_job_titles_for_user, job_meets_salary_requirements, job_matches_stop_words, \
     get_job_guidance_for_user, get_derived_data_for_job
 from job_scraper import scrape_job_data, clean_and_deduplicate_jobs, add_derived_data
@@ -22,6 +24,92 @@ from persistent_storage import save_jobs_to_supabase, get_user_configs, get_acti
 from llm import query_llm
 from send_emails import send_email_updates
 from file_utils import write_jobs_to_downloads
+
+
+def get_job_ratings2(original_df, db_user, user_configs):
+    jobs_df = original_df.copy()
+    db_job_titles = [config['string_value'] for config in user_configs if config['key'] == 'job_titles']
+    db_skill_words = [config['string_value'] for config in user_configs if config['key'] == 'skill_words']
+    db_stop_words = [config['string_value'] for config in user_configs if config['key'] == 'stop_words']
+    db_resume = db_user.get('resume')
+
+    job_titles = db_job_titles or []
+    skill_words = db_skill_words or []
+    stop_words = db_stop_words or []
+
+    resume = consolidate_text(db_resume)
+
+    for index, row in jobs_df.iterrows():
+        job_title = row.get('title', "N/A")
+        company = row.get('company', "N/A")
+        job_description = row.get('description', "N/A")
+        job_description = consolidate_text(job_description)
+
+        # Check for stop words first to avoid unnecessary API calls
+        if any(stop_word.lower() in job_title.lower()
+               for stop_word in stop_words):
+            print(f"{index}: Skipping {job_title} at {company} due to stop words")
+            jobs_df.at[index, 'desire_score'] = 0
+            jobs_df.at[index, 'experience_score'] = 0
+            jobs_df.at[index, 'meets_requirements_score'] = 0
+            jobs_df.at[index, 'meets_experience_score'] = 0
+            jobs_df.at[index, 'job_score'] = 0
+            continue
+
+        try:
+            # Get the structured yes/no evaluation from the LLM
+            from llm import evaluate_job_match
+            assessment = evaluate_job_match(
+                job_title=job_title,
+                job_description=job_description,
+                resume=resume,
+                job_titles=job_titles,
+                skill_words=skill_words,
+                stop_words=stop_words
+            )
+
+            # Calculate individual scores based on the yes/no responses
+            desire_score = calculate_desire_score(assessment)
+            experience_score = calculate_experience_score(assessment)
+            requirements_score = calculate_requirements_score(assessment)
+            experience_req_score = calculate_experience_requirements_score(assessment)
+
+            # Calculate final overall score
+            overall_score = calculate_overall_score(
+                desire_score,
+                experience_score,
+                requirements_score,
+                experience_req_score
+            )
+
+            # Update DataFrame with all scores
+            jobs_df.at[index, 'desire_score'] = desire_score
+            jobs_df.at[index, 'experience_score'] = experience_score
+            jobs_df.at[index, 'meets_requirements_score'] = requirements_score
+            jobs_df.at[index, 'meets_experience_score'] = experience_req_score
+            jobs_df.at[index, 'job_score'] = overall_score
+            # Get guidance from the assessment
+            jobs_df.at[index, 'guidance'] = assessment.guidance_text
+
+            print(f"{index}: Rating added for {job_title} at {company}: {overall_score}")
+
+            # Optionally add detailed assessment results for debugging or analysis
+            jobs_df.at[index, 'assessment_details'] = assessment.model_dump_json()
+
+        except Exception as e:
+            print(f"{index}: Error processing {job_title} at {company}: {str(e)}")
+            # Set all scores to 0 in case of error
+            jobs_df.at[index, 'desire_score'] = 0
+            jobs_df.at[index, 'experience_score'] = 0
+            jobs_df.at[index, 'meets_requirements_score'] = 0
+            jobs_df.at[index, 'meets_experience_score'] = 0
+            jobs_df.at[index, 'job_score'] = 0
+            jobs_df.at[index, 'guidance'] = "Unable to generate guidance due to an error in processing this job."
+
+    jobs_over_50 = jobs_df[jobs_df['job_score'].astype(float) > 50]
+
+    print('Found jobs with scores over 50: ' + str(len(jobs_over_50)))
+    return jobs_over_50
 
 
 def get_job_ratings(original_df, db_user, user_configs):
@@ -180,7 +268,7 @@ def get_jobs_for_user(db_user, job_titles):
         distance = 20
 
     db_results_wanted = db_user.get('results_wanted')
-    results_wanted = db_results_wanted if db_results_wanted is not None else 10
+    results_wanted = db_results_wanted if db_results_wanted is not None else 5
     scraped_data = scrape_job_data(
         user_id,
         job_titles,
@@ -233,7 +321,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
                                ' each')
                               ]
 
-    rated_jobs = get_job_ratings(jobs_df, db_user, user_configs)
+    rated_jobs = get_job_ratings2(jobs_df, db_user, user_configs)
     todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume, llm="chatgpt")
 
     return todays_jobs

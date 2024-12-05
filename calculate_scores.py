@@ -1,5 +1,7 @@
+from typing import List
 from helpers import consolidate_text
-from llm import query_llm
+from llm import evaluate_job_match
+from models import JobAssessment
 
 
 def get_job_ratings(original_df, db_user, user_configs):
@@ -20,25 +22,45 @@ def get_job_ratings(original_df, db_user, user_configs):
         job_description = row.get('description', "N/A")
         job_description = consolidate_text(job_description)
 
-        # Calculate each score using binary questions
-        desire_score = calculate_desire_score(job_title, job_description, resume, job_titles, skill_words, stop_words)
-        experience_level_score = calculate_experience_level_score(job_description, resume)
-        meets_requirements_score = calculate_meets_requirements_score(job_description, resume)
-        meets_experience_score = calculate_meets_experience_score(job_description, resume)
+        # Check for stop words first to avoid unnecessary API calls
+        if any(stop_word.lower() in job_title.lower() or
+               stop_word.lower() in job_description.lower()
+               for stop_word in stop_words):
+            jobs_df.at[index, 'desire_score'] = 0
+            jobs_df.at[index, 'experience_score'] = 0
+            jobs_df.at[index, 'meets_requirements_score'] = 0
+            jobs_df.at[index, 'meets_experience_score'] = 0
+            jobs_df.at[index, 'job_score'] = 0
+            continue
 
-        # Calculate overall score
-        overall_score = calculate_overall_score(
-            desire_score,
-            experience_level_score,
-            meets_requirements_score,
-            meets_experience_score
+        # Get yes/no answers from LLM
+        assessment = evaluate_job_match(
+            job_title=job_title,
+            job_description=job_description,
+            resume=resume,
+            job_titles=job_titles,
+            skill_words=skill_words,
+            stop_words=stop_words
         )
 
-        # Update DataFrame
+        # Calculate scores based on the yes/no responses
+        desire_score = calculate_desire_score(assessment)
+        experience_score = calculate_experience_score(assessment)
+        requirements_score = calculate_requirements_score(assessment)
+        experience_req_score = calculate_experience_requirements_score(assessment)
+
+        overall_score = calculate_overall_score(
+            desire_score,
+            experience_score,
+            requirements_score,
+            experience_req_score
+        )
+
+        # Update DataFrame with scores
         jobs_df.at[index, 'desire_score'] = desire_score
-        jobs_df.at[index, 'experience_score'] = experience_level_score
-        jobs_df.at[index, 'meets_requirements_score'] = meets_requirements_score
-        jobs_df.at[index, 'meets_experience_score'] = meets_experience_score
+        jobs_df.at[index, 'experience_score'] = experience_score
+        jobs_df.at[index, 'meets_requirements_score'] = requirements_score
+        jobs_df.at[index, 'meets_experience_score'] = experience_req_score
         jobs_df.at[index, 'job_score'] = overall_score
 
         print(f"{index}: Adding a rating to: {job_title} at {row.get('company', 'N/A')}: {overall_score}")
@@ -46,145 +68,135 @@ def get_job_ratings(original_df, db_user, user_configs):
     return jobs_df
 
 
-def calculate_desire_score(job_title, job_description, resume, job_titles, skill_words, stop_words):
-    """Calculate how well the job matches candidate's desires"""
+def create_evaluation_prompt(job_title: str, job_description: str, resume: str,
+                             job_titles: List[str], skill_words: List[str],
+                             stop_words: List[str]) -> str:
+    return f"""Evaluate this job opportunity for the candidate by answering YES or NO to each question.
+    Be direct and definitive in your assessment.
 
-    # Pre-check for stop words
-    for stop_word in stop_words:
-        if stop_word.lower() in job_title.lower() or stop_word.lower() in job_description.lower():
-            return 0  # Immediate rejection if stop words are present
+    Job Details:
+    Title: {job_title}
+    Description: {job_description}
 
-    questions = [
-        {
-            "text": f"Is the job title similar to any of these preferred titles: {', '.join(job_titles)}?",
-            "weight": 3
-        },
-        {
-            "text": f"Does the job description prominently mention multiple of these skills: {', '.join(skill_words)}?",
-            "weight": 3
-        },
-        {
-            "text": f"Is the job description free from these unwanted terms: {', '.join(stop_words)}?",
-            "weight": 3
-        },
-        {
-            "text": "Based on the resume, does this job represent a logical next step in the candidate's career progression?",
-            "weight": 2
-        }
-    ]
-    return ask_weighted_questions(questions, job_title, job_description, resume)
+    Candidate Information:
+    Resume: {resume}
+    Preferred Job Titles: {', '.join(job_titles)}
+    Desired Skills: {', '.join(skill_words)}
+    Terms to Avoid: {', '.join(stop_words)}
+
+    Answer each question with only YES or NO in the structured output.
+    """
 
 
-def calculate_experience_level_score(job_description, resume, skill_words, job_titles):
-    """Calculate if the experience level is appropriate"""
-    questions = [
-        {
-            "text": "Comparing the job description's required years of experience to the resume, is the candidate within 2 years of the requirement (either direction)?",
-            "weight": 3
-        },
-        {
-            "text": f"Looking at the skills {', '.join(skill_words)} from the candidate's preferences, does the role's seniority level match the candidate's expertise with these skills?",
-            "weight": 3
-        },
-        {
-            "text": "Are the role's responsibilities aligned with the candidate's current experience level shown in their resume?",
-            "weight": 2
-        },
-        {
-            "text": f"Given the candidate's preferred job titles ({', '.join(job_titles)}), would this role's level be appropriate?",
-            "weight": 2
-        }
-    ]
-    return ask_weighted_questions(questions, "", job_description, resume)
-
-
-def calculate_meets_requirements_score(job_description, resume, skill_words, job_titles):
-    """Calculate how well candidate meets skill requirements"""
-    questions = [
-        {
-            "text": f"Looking at the preferred skills ({', '.join(skill_words)}), does the candidate demonstrate proficiency in these areas?",
-            "weight": 3
-        },
-        {
-            "text": "Does the candidate's resume show experience with the technical skills required in the job description?",
-            "weight": 3
-        },
-        {
-            "text": "Does the candidate meet the educational requirements mentioned in the job description?",
-            "weight": 2
-        },
-        {
-            "text": f"Given the candidate's target roles ({', '.join(job_titles)}), does their industry experience align with this position?",
-            "weight": 2
-        }
-    ]
-    return ask_weighted_questions(questions, "", job_description, resume)
-
-
-def calculate_meets_experience_score(job_description, resume, job_titles, skill_words):
-    """Calculate how well candidate meets experience requirements"""
-    questions = [
-        {
-            "text": "Based on the resume, does the candidate meet the minimum years of experience specified in the job description?",
-            "weight": 3
-        },
-        {
-            "text": f"Has the candidate performed roles similar to {', '.join(job_titles)} before?",
-            "weight": 3
-        },
-        {
-            "text": f"Looking at the preferred skills ({', '.join(skill_words)}), does the candidate's experience show growth and increasing expertise in these areas?",
-            "weight": 2
-        },
-        {
-            "text": "Does the candidate's work history demonstrate success in similar company environments?",
-            "weight": 2
-        }
-    ]
-    return ask_weighted_questions(questions, "", job_description, resume)
-
-
-def ask_weighted_questions(questions, job_title, job_description, resume, llm):
-    """Ask questions and calculate weighted score"""
-    total_weight = sum(q["weight"] for q in questions)
-    current_score = 0
-
-    for question in questions:
-        prompt = f"""
-        Based on the following job details and resume, please answer YES or NO:
-
-        Job Title: {job_title}
-        Job Description: {job_description}
-
-        Resume: {resume}
-
-        Question: {question['text']}
-
-        Consider the question carefully and answer with ONLY 'YES' or 'NO'.
-        """
-
-        response = llm(prompt).strip().upper()
-        if response == "YES":
-            current_score += question["weight"]
-
-    # Convert to 0-100 scale
-    return round((current_score / total_weight) * 100)
-
-
-def calculate_overall_score(desire_score, experience_level_score, meets_requirements_score, meets_experience_score):
-    """Calculate overall score with weighted components"""
+def calculate_desire_score(assessment: JobAssessment) -> int:
+    """Calculate desire score based on weighted criteria"""
     weights = {
-        'desire_score': 0.25,
-        'experience_level_score': 0.25,
-        'meets_requirements_score': 0.25,
-        'meets_experience_score': 0.25
+        'title_matches_preferred': 3,
+        'has_desired_skills': 3,
+        'free_from_stop_words': 3,
+        'logical_career_step': 2
     }
 
-    overall_score = (
-            desire_score * weights['desire_score'] +
-            experience_level_score * weights['experience_level_score'] +
-            meets_requirements_score * weights['meets_requirements_score'] +
-            meets_experience_score * weights['meets_experience_score']
+    score = 0
+    total_weight = sum(weights.values())
+
+    if assessment.title_matches_preferred:
+        score += weights['title_matches_preferred']
+    if assessment.has_desired_skills:
+        score += weights['has_desired_skills']
+    if assessment.free_from_stop_words:
+        score += weights['free_from_stop_words']
+    if assessment.logical_career_step:
+        score += weights['logical_career_step']
+
+    # Use integer division
+    return (score * 100) // total_weight
+
+
+# Similar changes for other calculation functions:
+def calculate_experience_score(assessment: JobAssessment) -> int:
+    weights = {
+        'within_experience_range': 3,
+        'seniority_matches': 3,
+        'responsibilities_align': 2,
+        'level_appropriate': 2
+    }
+
+    score = 0
+    total_weight = sum(weights.values())
+
+    if assessment.within_experience_range:
+        score += weights['within_experience_range']
+    if assessment.seniority_matches:
+        score += weights['seniority_matches']
+    if assessment.responsibilities_align:
+        score += weights['responsibilities_align']
+    if assessment.level_appropriate:
+        score += weights['level_appropriate']
+
+    return (score * 100) // total_weight
+
+
+def calculate_requirements_score(assessment: JobAssessment) -> int:
+    weights = {
+        'has_required_technical_skills': 3,
+        'has_required_domain_skills': 3,
+        'meets_education_requirements': 2,
+        'has_industry_experience': 2
+    }
+
+    score = 0
+    total_weight = sum(weights.values())
+
+    if assessment.has_required_technical_skills:
+        score += weights['has_required_technical_skills']
+    if assessment.has_required_domain_skills:
+        score += weights['has_required_domain_skills']
+    if assessment.meets_education_requirements:
+        score += weights['meets_education_requirements']
+    if assessment.has_industry_experience:
+        score += weights['has_industry_experience']
+
+    return (score * 100) // total_weight
+
+
+def calculate_experience_requirements_score(assessment: JobAssessment) -> int:
+    weights = {
+        'meets_years_required': 3,
+        'has_similar_role_history': 3,
+        'shows_skill_growth': 2,
+        'has_similar_environment': 2
+    }
+
+    score = 0
+    total_weight = sum(weights.values())
+
+    if assessment.meets_years_required:
+        score += weights['meets_years_required']
+    if assessment.has_similar_role_history:
+        score += weights['has_similar_role_history']
+    if assessment.shows_skill_growth:
+        score += weights['shows_skill_growth']
+    if assessment.has_similar_environment:
+        score += weights['has_similar_environment']
+
+    return (score * 100) // total_weight
+
+
+def calculate_overall_score(desire_score: int, experience_score: int,
+                            requirements_score: int, experience_req_score: int) -> int:
+    weights = {
+        'desire_score': 0.25,
+        'experience_score': 0.25,
+        'requirements_score': 0.25,
+        'experience_req_score': 0.25
+    }
+
+    overall_score = int(
+        desire_score * weights['desire_score'] +
+        experience_score * weights['experience_score'] +
+        requirements_score * weights['requirements_score'] +
+        experience_req_score * weights['experience_req_score']
     )
 
-    return round(overall_score)
+    return overall_score
