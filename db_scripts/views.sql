@@ -32,5 +32,10 @@ FROM
 JOIN
     jobscraper.jobs j ON uj.job_id = j.id
 WHERE
-    (j.date_posted > CURRENT_DATE - interval '7 days' OR j.date_pulled > CURRENT_DATE - interval '7 days')
-    AND uj.score::INT >= 50;
+    (
+      ((uj.interested is null or uj.interested = false) and (j.date_posted > CURRENT_DATE - interval '14 days' OR j.date_pulled > CURRENT_DATE - interval '14 days'))
+      or uj.interested = true
+      or uj.has_applied = true
+    )
+    AND
+    uj.score::INT >= 50
