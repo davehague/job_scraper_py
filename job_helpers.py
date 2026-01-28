@@ -91,7 +91,7 @@ def get_job_guidance_for_user(db_user, user_configs, job):
         """
 
     ratings = query_llm(llm="openai",
-                        model_name="gpt-4o-mini",
+                        model_name="gpt-4.1-nano",
                         system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                         messages=[{"role": "user", "content": full_message}])
 
@@ -180,7 +180,7 @@ def find_best_job_titles_for_user(user, user_configs):
     if not db_job_titles:
         print("No job titles found in the database, using LLM to find job titles.")
         titles = query_llm(llm="openai",
-                           model_name="gpt-4o-mini",
+                           model_name="gpt-4.1-nano",
                            system="You are an expert in searching job listings. You take all the information"
                                   " given to you and come up with a list of 3 most relevant job titles. You do not"
                                   " have to use the job titles provided by the candidate, but take them into"
@@ -240,7 +240,7 @@ def get_derived_data_for_job(job):
     for column_name, question in derived_data_questions:
         llm_message = full_message + question
         answer = query_llm(llm="openai",
-                           model_name="gpt-4o-mini",
+                           model_name="gpt-4.1-nano",
                            system=system_message,
                            messages=[{"role": "user", "content": llm_message}])
         derived_data[column_name] = answer

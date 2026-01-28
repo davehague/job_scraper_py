@@ -140,7 +140,7 @@ def ask_chatgpt_about_job(question, job_description, resume=None):
 
     full_message = build_context_for_llm(job_description, resume, question)
 
-    model = "gpt-3.5-turbo"
+    model = "gpt-4.1-nano"
     max_retries = 5
     wait_time = 5
 
@@ -245,7 +245,7 @@ def evaluate_job_match(job_title: str, job_description: str, resume: str,
         )
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {
                     "role": "system",

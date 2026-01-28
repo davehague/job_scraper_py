@@ -176,7 +176,7 @@ def get_job_ratings(original_df, db_user, user_configs):
             """
 
         ratings = query_llm(llm="openai",
-                            model_name="gpt-4o-mini",
+                            model_name="gpt-4.1-nano",
                             system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                             messages=[{"role": "user", "content": full_message}])
 
@@ -269,6 +269,8 @@ def get_jobs_for_user(db_user, job_titles):
 
     db_results_wanted = db_user.get('results_wanted')
     results_wanted = db_results_wanted if db_results_wanted is not None else 5
+    if SMALL_RUN:
+        results_wanted = min(results_wanted, 2)
     scraped_data = scrape_job_data(
         user_id,
         job_titles,
@@ -438,7 +440,13 @@ def find_existing_jobs_for_users(users):
 
 
 SCHEDULED = True
+SMALL_RUN = False  # Process only the first user with 2 results per site, skip email. Forces SCHEDULED=False.
+
 if __name__ == '__main__':
+
+    if SMALL_RUN:
+        SCHEDULED = False
+        print("=== SMALL RUN MODE: 1 user, 2 results/site, no email ===")
 
     if SCHEDULED:
         downloads_path = Path(os.path.join(os.path.expanduser('~'), 'Downloads'))
@@ -467,6 +475,9 @@ if __name__ == '__main__':
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
     eligible_users = get_active_users_with_resume()
+    if SMALL_RUN:
+        eligible_users = eligible_users[:1]
+
     for user in eligible_users:
         user_id = user.get('id')
         print(f"Processing user: {user_id} ({user.get('name')})")
@@ -508,5 +519,9 @@ if __name__ == '__main__':
         #     update_job_in_supabase(row)  # Add the derived data
         #     add_user_job_association(user_id, row.get('id'))
 
-    find_existing_jobs_for_users(eligible_users)
-    send_email_updates()
+    if not SMALL_RUN:
+        find_existing_jobs_for_users(eligible_users)
+        send_email_updates()
+    else:
+        print("=== SMALL RUN: skipping existing job matching and email ===")
+

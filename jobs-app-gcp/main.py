@@ -295,7 +295,7 @@ def jobs_app_function(context):
                 full_message = build_context_for_llm(job_description, user_provided_info, question)
                 full_message = consolidate_text(full_message)
 
-                answer = query_llm(llm='openai', model_name='gpt-4o-mini',
+                answer = query_llm(llm='openai', model_name='gpt-4.1-nano',
                                    system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
                                           " them to the letter. Only return plain text, not markdown or HTML.",
                                    messages=[{"role": "user", "content": full_message}])
@@ -368,7 +368,7 @@ def jobs_app_function(context):
                 """
 
             ratings = query_llm(llm="openai",
-                                model_name="gpt-4o-mini",
+                                model_name="gpt-4.1-nano",
                                 system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                                 messages=[{"role": "user", "content": full_message}])
 
