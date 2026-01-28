@@ -1,6 +1,7 @@
 import re
 
 from llm import query_llm
+from llm_config import MODEL_FAST
 from helpers import consolidate_text
 from persistent_storage import save_titles_for_user
 
@@ -90,8 +91,7 @@ def get_job_guidance_for_user(db_user, user_configs, job):
         You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons in one sentence>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons, in one sentence>. Overall, I think <your overall thoughts about the match between the user and the job in one sentence>.
         """
 
-    ratings = query_llm(llm="openai",
-                        model_name="gpt-4.1-nano",
+    ratings = query_llm(model_name=MODEL_FAST,
                         system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                         messages=[{"role": "user", "content": full_message}])
 
@@ -179,8 +179,7 @@ def find_best_job_titles_for_user(user, user_configs):
 
     if not db_job_titles:
         print("No job titles found in the database, using LLM to find job titles.")
-        titles = query_llm(llm="openai",
-                           model_name="gpt-4.1-nano",
+        titles = query_llm(model_name=MODEL_FAST,
                            system="You are an expert in searching job listings. You take all the information"
                                   " given to you and come up with a list of 3 most relevant job titles. You do not"
                                   " have to use the job titles provided by the candidate, but take them into"
@@ -239,22 +238,9 @@ def get_derived_data_for_job(job):
     derived_data = {}
     for column_name, question in derived_data_questions:
         llm_message = full_message + question
-        answer = query_llm(llm="openai",
-                           model_name="gpt-4.1-nano",
+        answer = query_llm(model_name=MODEL_FAST,
                            system=system_message,
                            messages=[{"role": "user", "content": llm_message}])
         derived_data[column_name] = answer
 
     return derived_data
-
-
-def build_context_for_llm(job_description, resume, question):
-    full_message = ''
-    if resume is not None:
-        full_message += "Here is the candidate's resume, below\n"
-        full_message += resume + "\n\n"
-    if job_description:
-        full_message += ("Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
-                         "===) \n===\n") + job_description + "\n===\n"
-    full_message += "Now for my question: \n" + question
-    return full_message

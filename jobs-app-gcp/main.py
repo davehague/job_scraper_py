@@ -8,11 +8,13 @@ from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 
 import pandas as pd
-import anthropic
 from openai import OpenAI
-import google.generativeai as gemini
 
 from jobspy import scrape_jobs  # python-jobspy package
+
+# OpenRouter configuration
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "openai/gpt-4.1-nano")
 # import numpy as np
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
@@ -39,64 +41,34 @@ def jobs_app_function(context):
         jobs_app_scheduled(context.get_json(), context.context)
         return 'Scheduled job executed successfully', 200
 
-    def query_llm(llm, model_name, system, messages=[]):
+    def query_llm(model_name, system, messages=[]):
         max_retries = 3
         wait_time = 3
 
+        # Build messages list without mutating the caller's list
+        messages_with_system = [{"role": "system", "content": system}] + messages
+
         for attempt in range(max_retries):
             try:
-                if llm == "openai":
-                    messages.insert(0, {"role": "system", "content": system})
-                    client = OpenAI(
-                        api_key=os.environ.get("OPENAI_API_KEY",
-                                               'Specified environment variable OPENAI_API_KEY is not set.'),
-                    )
-                    completion = client.chat.completions.create(
-                        messages=messages,
-                        max_tokens=256,
-                        model=model_name,
-                        temperature=1.0
-                    )
-                    return completion.choices[0].message.content
-                elif llm == "anthropic":
-                    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY",
-                                                       'Specified environment variable ANTHROPIC_API_KEY is not set.')
-                    client = anthropic.Anthropic(api_key=anthropic_api_key)
-                    message = client.messages.create(
-                        model=model_name,
-                        max_tokens=256,
-                        temperature=1.0,
-                        system=system,
-                        messages=messages
-                    )
-                    return message.content[0].text
-                elif llm == "gemini":
-                    safe = [
-                        {
-                            "category": "HARM_CATEGORY_HARASSMENT",
-                            "threshold": "BLOCK_NONE",
-                        },
-                        {
-                            "category": "HARM_CATEGORY_HATE_SPEECH",
-                            "threshold": "BLOCK_NONE",
-                        },
-                        {
-                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            "threshold": "BLOCK_NONE",
-                        },
-                        {
-                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                            "threshold": "BLOCK_NONE",
-                        }
-                    ]
+                api_key = os.environ.get("OPENROUTER_API_KEY")
+                if not api_key:
+                    raise ValueError("Environment variable OPENROUTER_API_KEY is not set.")
 
-                    gemini.configure(api_key=os.environ.get("GEMINI_API_KEY",
-                                                            'Specified environment variable GEMINI_API_KEY is not set.'))
-                    model = gemini.GenerativeModel(model_name=model_name, safety_settings=safe)  # 'gemini-1.5-flash'
-                    response = model.generate_content(system + " " + " ".join([msg["content"] for msg in messages]))
-                    return response.text
-                else:
-                    return None
+                client = OpenAI(
+                    base_url=OPENROUTER_BASE_URL,
+                    api_key=api_key,
+                    default_headers={
+                        "HTTP-Referer": "https://jobs.timetovalue.org",
+                        "X-Title": "Job Scraper GCP",
+                    },
+                )
+                completion = client.chat.completions.create(
+                    messages=messages_with_system,
+                    max_tokens=256,
+                    model=model_name,
+                    temperature=1.0
+                )
+                return completion.choices[0].message.content
 
             except Exception as e:
                 logging.error(
@@ -295,7 +267,7 @@ def jobs_app_function(context):
                 full_message = build_context_for_llm(job_description, user_provided_info, question)
                 full_message = consolidate_text(full_message)
 
-                answer = query_llm(llm='openai', model_name='gpt-4.1-nano',
+                answer = query_llm(model_name=MODEL_FAST,
                                    system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow" \
                                           " them to the letter. Only return plain text, not markdown or HTML.",
                                    messages=[{"role": "user", "content": full_message}])
@@ -367,8 +339,7 @@ def jobs_app_function(context):
                 You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons in one sentence>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons, in one sentence>. Overall, I think <your overall thoughts about the match between the user and the job in one sentence>.
                 """
 
-            ratings = query_llm(llm="openai",
-                                model_name="gpt-4.1-nano",
+            ratings = query_llm(model_name=MODEL_FAST,
                                 system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                                 messages=[{"role": "user", "content": full_message}])
 

@@ -40,8 +40,9 @@ The GCP function (`jobs-app-gcp/main.py`) is an HTTP-triggered cloud function wi
 
 Required in `.env` (root) and `.env.yaml` (GCP):
 
-- `OPENAI_API_KEY` — Primary LLM provider (GPT-4o-mini)
-- `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` — Alternative LLM providers
+- `OPENROUTER_API_KEY` — LLM provider via OpenRouter (routes to OpenAI, Anthropic, Google, etc.)
+- `LLM_MODEL_FAST` — (optional) Model for fast/cheap tasks, default: `openai/gpt-4.1-nano`
+- `LLM_MODEL_STRUCTURED` — (optional) Model for structured eval, default: `openai/gpt-5-mini`
 - `SUPABASE_URL`, `SUPABASE_KEY` — Database (service account key, bypasses RLS)
 - `MJ_APIKEY_PUBLIC`, `MJ_APIKEY_PRIVATE` — Mailjet email sending
 - `GOOGLE_CLOUD_FUNCTION_API_KEY` — GCP function auth (GCP only)
@@ -67,8 +68,9 @@ main.py orchestrates per-user:
 | Module | Responsibility |
 |---|---|
 | `main.py` | Entry point, per-user orchestration, legacy `get_job_ratings()` (text-parsing scores) and current `get_job_ratings2()` (structured output scores) |
+| `llm_config.py` | OpenRouter configuration: `get_openrouter_client()`, `MODEL_FAST`, `MODEL_STRUCTURED` constants |
+| `llm.py` | Unified LLM interface via OpenRouter: `query_llm()`, `ask_chatgpt_about_job()`, `evaluate_job_match()` (structured output → `JobAssessment`) |
 | `job_scraper.py` | Scraping via jobspy with exponential backoff, deduplication, derived data generation |
-| `llm.py` | Unified LLM interface (`query_llm`) supporting OpenAI/Anthropic/Gemini; `evaluate_job_match()` uses OpenAI structured output to return `JobAssessment` |
 | `models.py` | `JobAssessment` Pydantic model — 16 boolean assessment fields + 3 text guidance fields |
 | `calculate_scores.py` | Converts boolean assessments to weighted scores across 4 dimensions (desire, experience, requirements, experience_requirements), each 25% of overall |
 | `analyzer.py` | TF-IDF vectorization for resume-to-job matching |

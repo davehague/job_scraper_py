@@ -1,6 +1,4 @@
-import os
 import time
-from dotenv import load_dotenv
 
 from jobspy import scrape_jobs  # python-jobspy package
 import pandas as pd
@@ -8,11 +6,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-import anthropic
-from openai import OpenAI
-
-system_message = ("You are a helpful assistant, highly skilled in ruthlessly distilling down information from job "
-                  "descriptions, and answering questions about job descriptions in a concise and targeted manner.")
+from llm import ask_chatgpt_about_job
 
 
 def scrape_job_data(user_id, job_titles, job_sites, location, distance, results_wanted, hours_old, is_remote):
@@ -144,56 +138,7 @@ def remove_titles_not_matching_go_words(df, go_words):
     return filtered_df
 
 
-def ask_chatgpt_about_job(question, job_description, resume=None):
-    load_dotenv()
-
-    client = OpenAI(
-        api_key=os.environ.get("OPENAI_API_KEY"),
-    )
-
-    full_message = build_context_for_llm(job_description, resume, question)
-
-    model = "gpt-4.1-nano"
-    max_retries = 5
-    wait_time = 5
-
-    for attempt in range(max_retries):
-        try:
-            completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_message + "\nOnly return text, not markdown or HTML."},
-                    {"role": "user", "content": full_message}
-                ],
-                model=model,
-                temperature=0.0,
-                max_tokens=150
-            )
-
-            return completion.choices[0].message.content
-
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            time.sleep(wait_time)
-            wait_time *= 2
-
-    print("Failed to get a response after multiple retries.")
-    return None
-
-
-def build_context_for_llm(job_description, resume, question):
-    """Build the full message to send to the API."""
-    full_message = ''
-    if resume is not None:
-        full_message += "Here is the candidate's resume, below\n"
-        full_message += resume + "\n\n"
-    if job_description:
-        full_message += ("Here is some information about a job.  I'll mark the job start and end with 3 equals signs ("
-                         "===) \n===\n") + job_description + "\n===\n"
-    full_message += "Now for my question: \n" + question
-    return full_message
-
-
-def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="chatgpt"):
+def add_derived_data(jobs_df, derived_data_questions=[], resume=None):
     if len(derived_data_questions) == 0:
         return jobs_df
 
@@ -213,8 +158,7 @@ def add_derived_data(jobs_df, derived_data_questions=[], resume=None, llm="chatg
         print(f"{index}: Processing: {row.get('title', 'N/A')} at {row.get('company', 'N/A')}")
 
         for column_name, question in derived_data_questions:
-            if llm == "chatgpt":
-                answer = ask_chatgpt_about_job(question, job_description, resume)
+            answer = ask_chatgpt_about_job(question, job_description, resume)
 
             if answer is None:
                 print(f"Failed to get a response from the LLM, breaking out of loop.")

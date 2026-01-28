@@ -22,6 +22,7 @@ from persistent_storage import save_jobs_to_supabase, get_user_configs, get_acti
     get_recent_jobs, add_user_job_association, get_user_by_id, get_job_by_id, \
     user_has_recommendation, create_new_job_if_not_exists, get_user_job_matches, update_job_in_supabase
 from llm import query_llm
+from llm_config import MODEL_FAST
 from send_emails import send_email_updates
 from file_utils import write_jobs_to_downloads
 
@@ -175,8 +176,7 @@ def get_job_ratings(original_df, db_user, user_configs):
             You may <like, be lukewarm on, or dislike> this job because of the following reasons: <reasons in one sentence>. The hiring manager may think you would be a <good, reasonable, or bad> fit for this job because of <reasons, in one sentence>. Overall, I think <your overall thoughts about the match between the user and the job in one sentence>.
             """
 
-        ratings = query_llm(llm="openai",
-                            model_name="gpt-4.1-nano",
+        ratings = query_llm(model_name=MODEL_FAST,
                             system="You are a helpful no-nonsense assistant. You listen to directions carefully and follow them to the letter.",
                             messages=[{"role": "user", "content": full_message}])
 
@@ -324,7 +324,7 @@ def get_jobs_with_derived(db_user, jobs_df, job_titles, user_configs):
                               ]
 
     rated_jobs = get_job_ratings2(jobs_df, db_user, user_configs)
-    todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume, llm="chatgpt")
+    todays_jobs = add_derived_data(rated_jobs, derived_data_questions, resume=resume)
 
     return todays_jobs
 
