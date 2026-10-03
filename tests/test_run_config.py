@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest import mock
 
-from run_config import emails_enabled, env_flag
+from run_config import emails_enabled, env_flag, log_to_file
 
 
 class EnvFlagTests(unittest.TestCase):
@@ -35,6 +35,16 @@ class EmailsEnabledTests(unittest.TestCase):
     def test_disabled_by_env(self):
         with mock.patch.dict(os.environ, {"SEND_EMAILS": "false"}, clear=True):
             self.assertFalse(emails_enabled())
+
+
+class LogToFileTests(unittest.TestCase):
+    def test_defaults_to_file_logging(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(log_to_file())
+
+    def test_disabled_by_env(self):
+        with mock.patch.dict(os.environ, {"LOG_TO_FILE": "false"}, clear=True):
+            self.assertFalse(log_to_file())
 
 
 if __name__ == "__main__":

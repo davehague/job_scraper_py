@@ -34,3 +34,13 @@ def emails_enabled() -> bool:
     save) without emailing anyone.
     """
     return env_flag("SEND_EMAILS", default=True)
+
+
+def log_to_file() -> bool:
+    """Whether main.py should redirect stdout/stderr to ~/Downloads/job_scraper_<date>.log.
+
+    Controlled by LOG_TO_FILE. Defaults to True (the historical "SCHEDULED"
+    behaviour). Set LOG_TO_FILE=false when a supervisor such as systemd or a
+    job wrapper already captures stdout/stderr.
+    """
+    return env_flag("LOG_TO_FILE", default=True)

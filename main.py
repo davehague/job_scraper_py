@@ -24,7 +24,7 @@ from persistent_storage import save_jobs_to_supabase, get_user_configs, get_acti
 from llm import query_llm
 from llm_config import MODEL_FAST
 from send_emails import send_email_updates
-from run_config import emails_enabled
+from run_config import emails_enabled, log_to_file
 from file_utils import write_jobs_to_downloads
 
 
@@ -440,7 +440,7 @@ def find_existing_jobs_for_users(users):
     return matched_jobs
 
 
-SCHEDULED = True
+SCHEDULED = log_to_file()  # LOG_TO_FILE=false to leave stdout/stderr alone (e.g. under systemd)
 SMALL_RUN = False  # Process only the first user with 2 results per site, skip email. Forces SCHEDULED=False.
 
 if __name__ == '__main__':
