@@ -125,12 +125,16 @@ def get_active_users_with_resume():
 
 def get_recent_jobs(days_old=7):
     supabase = get_supabase_client()
+    cutoff_date = datetime.now() - timedelta(days=days_old)
+    cutoff_iso = cutoff_date.date().isoformat()
+    # Filter server-side: PostgREST caps an unfiltered select at 1000 rows, so
+    # with a few thousand jobs the newest ones were silently never returned.
     response = (supabase.table('jobs')
                 .select('id, title, date_posted, date_pulled')
+                .or_(f'date_posted.gt.{cutoff_iso},date_pulled.gt.{cutoff_iso}')
                 .execute())
 
     if response.data:
-        cutoff_date = datetime.now() - timedelta(days=days_old)
         jobs = [(item['id'], item['title']) for item in response.data if
                 pd.to_datetime(item.get('date_posted') or item.get('date_pulled')) > cutoff_date]
         return jobs
