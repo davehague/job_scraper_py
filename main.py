@@ -275,7 +275,7 @@ def get_jobs_for_user(db_user, job_titles):
     scraped_data = scrape_job_data(
         user_id,
         job_titles,
-        job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin', 'google'],
+        job_sites=['indeed', 'zip_recruiter', 'glassdoor', 'linkedin'],  # google dropped 2026-10-02: needs JS since jobspy 1.2.0
         location=db_location,
         hours_old=24,
         results_wanted=results_wanted,
