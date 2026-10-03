@@ -475,11 +475,11 @@ if __name__ == '__main__':
         sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
         sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
-    eligible_users = get_active_users_with_resume()
-    if SMALL_RUN:
     if not emails_enabled():
         print("=== SEND_EMAILS=false: emails will be skipped at the end of this run ===")
 
+    eligible_users = get_active_users_with_resume()
+    if SMALL_RUN:
         eligible_users = eligible_users[:1]
 
     for user in eligible_users:
