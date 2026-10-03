@@ -37,7 +37,7 @@ def get_jobs_with_backoff(user_id, job_title, job_sites, location, distance, res
                 distance=distance,
                 is_remote=is_remote,
                 job_type="fulltime",
-                linkedin_fetch_description=True,
+                fetch_description=True,  # jobspy >= 1.2.0 name (was linkedin_fetch_description)
                 search_term=job_title,
                 results_wanted=results_wanted,
                 hours_old=hours_old,  # (only Linkedin/Indeed is hour specific, others round up to days old)

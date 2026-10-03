@@ -82,7 +82,7 @@ pyparsing==3.1.2
 pypdf==4.1.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
-python-jobspy==1.1.82
+python-jobspy==1.2.0
 pytz==2024.1
 PyYAML==6.0.1
 realtime==1.0.4
