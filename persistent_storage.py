@@ -114,12 +114,13 @@ def get_active_users_with_resume():
     supabase = get_supabase_client()
     response = supabase.rpc('get_active_users_with_resume').execute()
 
-    # Check the response
-    if response.data:
-        return response.data
-    else:
-        print(f"Error fetching roles: {response.get('error')}")
-        return None
+    users = response.data or []
+    if not users:
+        # The RPC only returns users with a resume AND a login in the last 30 days
+        # (see db_scripts/functions.sql), so an empty list is normal when nobody
+        # has logged in recently, not an error.
+        print("No active users with a resume and a login in the last 30 days; nothing to do.")
+    return users
 
 
 def get_recent_jobs(days_old=7):
