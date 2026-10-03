@@ -14,7 +14,7 @@ from jobspy import scrape_jobs  # python-jobspy package
 
 # OpenRouter configuration
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "openai/gpt-4.1-nano")
+MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "google/gemini-3-flash-preview")
 # import numpy as np
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
