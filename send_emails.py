@@ -4,9 +4,14 @@ from jinja2 import Environment, FileSystemLoader
 from mailjet_rest import Client
 
 from persistent_storage import get_supabase_client
+from run_config import emails_enabled
 
 
 def send_email_updates():
+    if not emails_enabled():
+        print("SEND_EMAILS is false: skipping email updates.")
+        return
+
     supabase = get_supabase_client()
     users = supabase.table('users').select('id, email, name, send_emails').neq('send_emails', 'never').execute()
 

@@ -46,6 +46,7 @@ Required in `.env` (root) and `.env.yaml` (GCP):
 - `SUPABASE_URL`, `SUPABASE_KEY` — Database (service account key, bypasses RLS)
 - `MJ_APIKEY_PUBLIC`, `MJ_APIKEY_PRIVATE` — Mailjet email sending
 - `GOOGLE_CLOUD_FUNCTION_API_KEY` — GCP function auth (GCP only)
+- `SEND_EMAILS` — (optional) set to `false` to run the full pipeline without sending any email (default `true`). Checked in `run_config.py`; tests in `tests/`.
 
 ## Architecture & Data Flow
 

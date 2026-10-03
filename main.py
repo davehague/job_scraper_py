@@ -24,6 +24,7 @@ from persistent_storage import save_jobs_to_supabase, get_user_configs, get_acti
 from llm import query_llm
 from llm_config import MODEL_FAST
 from send_emails import send_email_updates
+from run_config import emails_enabled
 from file_utils import write_jobs_to_downloads
 
 
@@ -476,6 +477,9 @@ if __name__ == '__main__':
 
     eligible_users = get_active_users_with_resume()
     if SMALL_RUN:
+    if not emails_enabled():
+        print("=== SEND_EMAILS=false: emails will be skipped at the end of this run ===")
+
         eligible_users = eligible_users[:1]
 
     for user in eligible_users:
