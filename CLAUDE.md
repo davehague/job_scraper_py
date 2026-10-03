@@ -41,7 +41,7 @@ The GCP function (`jobs-app-gcp/main.py`) is an HTTP-triggered cloud function wi
 Required in `.env` (root) and `.env.yaml` (GCP):
 
 - `OPENROUTER_API_KEY` — LLM provider via OpenRouter (routes to OpenAI, Anthropic, Google, etc.)
-- `LLM_MODEL_FAST` — (optional) Model for fast/cheap tasks, default: `openai/gpt-4.1-nano`
+- `LLM_MODEL_FAST` — (optional) Model for fast/cheap tasks, default: `google/gemini-3-flash-preview`
 - `LLM_MODEL_STRUCTURED` — (optional) Model for structured eval, default: `openai/gpt-5-mini`
 - `SUPABASE_URL`, `SUPABASE_KEY` — Database (service account key, bypasses RLS)
 - `MJ_APIKEY_PUBLIC`, `MJ_APIKEY_PRIVATE` — Mailjet email sending

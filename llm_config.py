@@ -3,7 +3,7 @@ import os
 from openai import OpenAI
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "openai/gpt-4.1-nano")
+MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "google/gemini-3-flash-preview")
 MODEL_STRUCTURED = os.environ.get("LLM_MODEL_STRUCTURED", "openai/gpt-5-mini")
 APP_SITE_URL = "https://jobs.timetovalue.org"
 APP_TITLE = "Job Scraper"
