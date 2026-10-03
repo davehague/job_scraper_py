@@ -9,6 +9,7 @@ import nltk
 # Download required NLTK data
 nltk.download('stopwords', quiet=True)
 nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)  # required by word_tokenize on nltk >= 3.9
 
 
 def preprocess_text(text):
