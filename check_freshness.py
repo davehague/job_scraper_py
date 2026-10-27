@@ -7,8 +7,8 @@ eligible users (resume + login in the last 30 days), and how old is the newest
 jobs.date_pulled. Eligible users plus a stale newest job means the scraper is
 not doing its job.
 
-Read-only. Exit 0 = healthy or nothing to do, exit 1 = stale (job_wrapper.sh
-turns any exit other than 0 or 2 into a Slack alert).
+Read-only. Exit 2 = healthy or nothing to do (job_wrapper.sh's silent no-op),
+exit 1 = stale (job_wrapper.sh posts any exit other than 0 or 2 to Slack).
 """
 import sys
 from dataclasses import dataclass
@@ -61,7 +61,7 @@ def main() -> int:
 
     result = evaluate(len(get_active_users_with_resume()), get_newest_date_pulled(), datetime.now(timezone.utc))
     print(result.message)
-    return 1 if result.stale else 0
+    return 1 if result.stale else 2
 
 
 if __name__ == '__main__':
